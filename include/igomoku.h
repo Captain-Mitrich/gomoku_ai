@@ -21,6 +21,7 @@ public:
   virtual ~IGomoku() = default;
 
   virtual void start() = 0;
+  virtual bool isValidNextMove(int x, int y) const = 0;
   virtual bool doMove(int x, int y) = 0;
   virtual bool undo(int& x, int& y) = 0;
   virtual bool hint(int& x, int& y) = 0;
