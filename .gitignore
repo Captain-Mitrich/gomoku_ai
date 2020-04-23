@@ -1,0 +1,5 @@
+
+.cmake
+.debug
+.release
+CMakeLists.txt.user

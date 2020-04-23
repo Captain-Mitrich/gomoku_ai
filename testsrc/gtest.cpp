@@ -86,6 +86,39 @@ void gtest(const char* name, TestFunc f, uint count = 1)
 class TestGomoku : public Gomoku
 {
 public:
+  TestGomoku(int _width = 15, int _height = 15) : Gomoku(_width, _height)
+  {}
+
+  const GMoveData& get(const GPoint& move) const
+  {
+    return Gomoku::get(move);
+  }
+
+  int width() const
+  {
+    return Gomoku::width();
+  }
+
+  int height() const
+  {
+    return Gomoku::height();
+  }
+
+  const std::vector<GPoint>& cells() const
+  {
+    return Gomoku::cells();
+  }
+
+  bool isValidCell(const GPoint& cell)
+  {
+    return Gomoku::isValidCell(cell);
+  }
+
+  bool isEmptyCell(const GPoint& cell) const
+  {
+    return Gomoku::isEmptyCell(cell);
+  }
+
   const GPointStack& getLine5Moves(GPlayer player) const
   {
     return Gomoku::getLine5Moves(player);
@@ -99,6 +132,11 @@ public:
   bool hintLine5Block(GPlayer player, GPoint& point) const
   {
     return Gomoku::hintLine5Block(player, point);
+  }
+
+  GPoint hintImpl(GPlayer player)
+  {
+    return Gomoku::hintImpl(player);
   }
 
   GPoint hintMaxWgt(GPlayer player, int depth)
@@ -187,7 +225,7 @@ void testStart()
 //и отмены окончания игры после отмены выигрышного хода
 void testGameOverLine5(const GPoint& center, const GPoint& v1)
 {
-  Gomoku g;
+  TestGomoku g;
 
   GPoint lineStart = center;
   if (!adjustLineStart(lineStart, v1, 5, g.width(), g.height()))
@@ -232,7 +270,7 @@ void testGameOverLine5()
 
 void testGameOverFullGrid()
 {
-  Gomoku g(5, 5);
+  TestGomoku g(5, 5);
 
   int size = g.width() * g.height();
 
@@ -516,6 +554,58 @@ void testSameMaxWgt()
   assert(false);
 }
 
+void testMaxWgt2()
+{
+  TestGomoku g;
+
+  g.doMove(7, 7);
+  g.doMove(8, 7);
+  g.doMove(6, 8);
+  g.doMove(5, 9);
+  g.doMove(7, 8);
+  g.doMove(7, 6);
+  g.doMove(6, 5);
+  g.doMove(5, 8);
+  g.doMove(5, 6);
+
+  GPoint hp = g.hintMaxWgt(G_WHITE, 2);
+  assert(hp == GPoint(6, 7) || hp == GPoint(8, 9));
+
+  g.doMove(6, 7);
+
+  hp = g.hintImpl(G_BLACK);
+  assert(hp == GPoint(8, 5) || hp == GPoint(4, 9));
+}
+
+void testHintBestDefense()
+{
+  TestGomoku g;
+
+  g.setAiLevel(1);
+
+  g.doMove(7, 7);
+  g.doMove(8, 6);
+  g.doMove(7, 5);
+  g.doMove(6, 6);
+  g.doMove(7, 6);
+  g.doMove(7, 8);
+  g.doMove(8, 5);
+  g.doMove(6, 5);
+  g.doMove(7, 4);
+  g.doMove(7, 3);
+  g.doMove(6, 7);
+  g.doMove(5, 8);
+  g.doMove(10, 5);
+  g.doMove(9, 4);
+  g.doMove(10, 7);
+  g.doMove(6, 3);
+  g.doMove(9, 8);
+  g.doMove(9, 5);
+
+  GPoint hp = g.hintImpl(G_BLACK);
+  assert(hp == GPoint(10, 6) || hp == GPoint(6, 2));
+}
+
 int main()
 {
   gtest("testStart", testStart);
@@ -525,6 +615,8 @@ int main()
   gtest("testLine5Moves_xxxx", testLine5Moves_xxxx, 20);
   gtest("testLine5Moves_xxx_xx", testLine5Moves_xxx_xx, 20);
   gtest("testMaxWgtDepth0", testMaxWgtDepth0, 10);
-  gtest("testMaxWgtDepth2", testMaxWgtDepth2, 1);
+  gtest("testMaxWgtDepth2", testMaxWgtDepth2);
   gtest("testSameMaxWgt", testSameMaxWgt);
+  gtest("testMaxWgt2", testMaxWgt2);
+  gtest("testMaxWgt3", testHintBestDefense);
 }
