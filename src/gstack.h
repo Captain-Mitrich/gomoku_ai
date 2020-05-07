@@ -6,10 +6,12 @@
 namespace nsg
 {
 
-template<typename T, uint MAXSIZE>
-class GStack
+class BaseArray
 {
 public:
+  BaseArray(uint _size = 0) : m_size(_size)
+  {}
+
   bool empty() const
   {
     return m_size == 0;
@@ -25,6 +27,14 @@ public:
     return m_size;
   }
 
+protected:
+  uint m_size;
+};
+
+template<typename T, uint MAXSIZE>
+class TStack : public BaseArray
+{
+public:
   T& operator[](uint i)
   {
     assert(i < m_size);
@@ -49,16 +59,19 @@ public:
     return m_data[m_size++];
   }
 
-  const T& pop()
+  T& pop()
   {
     assert(!empty());
     return m_data[--m_size];
   }
 
+  const T* data()
+  {
+    return m_data;
+  }
+
 protected:
   T m_data[MAXSIZE];
-
-  uint m_size = 0;
 };
 
 } //namespace nsg

@@ -7,11 +7,14 @@
 #include "gstack.h"
 #include "gplayer.h"
 #include "gint.h"
-//#include "gtimer.h"
 #include <iostream>
 
 namespace nsg
 {
+
+static const uint DEF_GRID_WIDTH = 15;
+static const uint DEF_GRID_HEIGHT = 15;
+static const uint DEF_CELL_COUNT = DEF_GRID_WIDTH * DEF_GRID_HEIGHT;
 
 class GMoveWgt
 {
@@ -32,6 +35,9 @@ protected:
   //вес хода для обоих игроков
   int wgt[2] = {0, 0};
 };
+
+template <uint MAXSIZE>
+using GStack = TStack<GPoint, MAXSIZE>;
 
 class GStateBackup
 {
@@ -74,10 +80,9 @@ public:
   //бэкап весов связанных ходов
   GMoveWgt related_moves_wgt_backup[RELATED_MOVES_COUNT];
 
-protected:
   //новые линии 3, каждая линия 3 представлена парой свободных ходов,
   //каждый такой ход реализует линию 4
-  GStack<GPoint, RELATED_MOVES_COUNT> m_line4_moves;
+  GStack<RELATED_MOVES_COUNT> m_line4_moves;
 };
 
 class GMoveData : public GStateBackup
@@ -117,7 +122,7 @@ using GGrid = TGridStack<GMoveData, TCleanerByMethods<GMoveData>>;
 class Gomoku : public IGomoku, protected GGrid
 {
 public:
-  Gomoku(int _width = 15, int _height = 15);
+  Gomoku(int _width = DEF_GRID_WIDTH, int _height = DEF_GRID_HEIGHT);
 
   const GGrid& grid() const;
 
@@ -151,10 +156,11 @@ protected:
   bool hintLine5Block(GPlayer player, GPoint& move) const;
 
   //Поиск выигрышной цепочки шахов
-  bool hintVictoryMove4Chain(GPlayer player, GPoint& move, uint max_depth);
+  bool hintShortestVictoryMove4Chain(GPlayer player, GPoint& move, uint max_depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool hintVictoryMove4Chain(GPlayer player, GPoint& move, uint max_depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Лучшая защита от выигрышной цепочки шахов противника
-  GPoint hintBestDefense(GPlayer player, const GPoint& enemy_move4, int depth);
+  GPoint hintBestDefense(GPlayer player, const GPoint& enemy_move4, const GStack<DEF_CELL_COUNT>& variants, int depth);
 
   //Ход с лучшим весом при отсутствии выигрышных цепочек шахов игрока и угроз противника
   GPoint hintMaxWgt(GPlayer player, int depth);
@@ -163,14 +169,14 @@ protected:
   int calcWgt(GPlayer player, const GPoint& move, int depth);
 
   //Вес лучшей цепочки шахов
-  int calcMaxMove4ChainWgt(GPlayer player, uint depth);
+  int calcMaxMove4ChainWgt(GPlayer player, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   //Вес лучшей цепочки шахов с заданным начальным шахом
-  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth);
+  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   //Вес блокировки шаха противника в цепочке шахов противника
-  int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth);
+  int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
-  int calcMaxDefenseWgt(GPlayer player, int depth);
+  int calcMaxDefenseWgt(GPlayer player, const GStack<DEF_CELL_COUNT>& variants, int depth);
   //Вес контршаха для защиты от выигрышной цепочки шахов противника
   int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth);
   //Вес хода для защиты от выигрышной цепочки шахов противника
@@ -235,14 +241,7 @@ protected:
       if (!isEmptyCell(move))
         return false;
 
-//      GTimer t(depth >= 1);
       wgt = calcWgt(player, move, depth);
-//      if (depth >= 1)
-//      {
-//        uint elapsed = t.elapsed();
-//        if (elapsed > 0)
-//          std::cout << "calcWgt(" << move.x << ", " << move.y << "), depth = " << depth << " - " << t.elapsed() << std::endl;
-//      }
 
       wgtHandler(move, wgt);
 

@@ -144,6 +144,30 @@ public:
     return Gomoku::hintMaxWgt(player, depth);
   }
 
+  int calcMaxWgt(GPlayer player, GPoint& max_wgt_move, int depth)
+  {
+    int max_wgt = WGT_DEFEAT;
+
+    auto wgtHandler = [&](const GPoint& move, int wgt)
+    {
+      if (wgt > max_wgt)
+      {
+        max_wgt = wgt;
+        max_wgt_move = move;
+      }
+    };
+
+    GPoint move;
+    findVictoryMove(player, move, depth, wgtHandler);
+
+    return max_wgt;
+  }
+
+  int calcWgt(GPlayer player, const GPoint& move, int depth)
+  {
+    return Gomoku::calcWgt(player, move, depth);
+  }
+
   bool next(GPoint& p) const
   {
     return Gomoku::next(p);
@@ -577,6 +601,66 @@ void testMaxWgt2()
   assert(hp == GPoint(8, 5) || hp == GPoint(4, 9));
 }
 
+void testCalcWgt()
+{
+  TestGomoku g;
+
+  int black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+
+  g.doMove(7, 7);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(7, 8);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(6, 6);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(5, 5);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(6, 8);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(6, 7);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(4, 6);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(5, 6);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(4, 5);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(5, 7);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(5, 4);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(5, 9);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+  g.doMove(5, 8);
+  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
+
+  int wgt1, wgt1_0, wgt1_1, wgt1_1_0, wgt1_2;
+  int wgt2, wgt2_0, wgt2_1, wgt2_1_0, wgt2_2;
+  wgt1 = g.calcWgt(G_WHITE, GPoint(10, 5), 2);
+  wgt2 = g.calcWgt(G_WHITE, GPoint(4, 7), 2);
+
+  wgt1_0 = g.get(GPoint(10, 5)).wgt[G_WHITE];
+  wgt2_0 = g.get(GPoint(4, 7)).wgt[G_WHITE];
+
+  GPoint max_wgt_move1, max_wgt_move2;
+
+  {
+    GMoveMaker gmm1(&g, G_WHITE, {10, 5});
+    wgt1_1 = g.calcMaxWgt(G_BLACK, max_wgt_move1, 1);
+    wgt1_1_0 = g.get(max_wgt_move1).wgt[G_BLACK];
+    assert(wgt1 == wgt1_0 - wgt1_1);
+  }
+
+  {
+    GMoveMaker gmm2(&g, G_WHITE, {4, 7});
+    wgt2_1 = g.calcMaxWgt(G_BLACK, max_wgt_move2, 1);
+    wgt2_1_0 = g.get(max_wgt_move2).wgt[G_BLACK];
+    assert(wgt2 == wgt2_0 - wgt2_1);
+  }
+
+  assert(wgt1 < wgt2);
+}
+
 void testHintBestDefense()
 {
   TestGomoku g;
@@ -618,5 +702,6 @@ int main()
   gtest("testMaxWgtDepth2", testMaxWgtDepth2);
   gtest("testSameMaxWgt", testSameMaxWgt);
   gtest("testMaxWgt2", testMaxWgt2);
-  gtest("testMaxWgt3", testHintBestDefense);
+  gtest("testCalcWgt", testCalcWgt);
+  gtest("testHintBestDefense", testHintBestDefense);
 }
