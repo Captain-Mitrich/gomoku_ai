@@ -156,7 +156,7 @@ protected:
   bool hintLine5Block(GPlayer player, GPoint& move) const;
 
   //Поиск выигрышной цепочки шахов
-  bool hintShortestVictoryMove4Chain(GPlayer player, GPoint& move, uint max_depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool hintShortestVictoryMove4Chain(GPlayer player, GPoint& move, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   bool hintVictoryMove4Chain(GPlayer player, GPoint& move, uint max_depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Лучшая защита от выигрышной цепочки шахов противника
