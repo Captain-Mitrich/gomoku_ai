@@ -156,11 +156,24 @@ protected:
   bool hintLine5Block(GPlayer player, GPoint& move) const;
 
   //Поиск выигрышной цепочки шахов
-  bool hintShortestVictoryMove4Chain(GPlayer player, GPoint& move, GStack<DEF_CELL_COUNT>* defense_variants = 0);
-  bool hintVictoryMove4Chain(GPlayer player, GPoint& move, uint max_depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool hintShortestVictoryMove4Chain(
+      GPlayer player,
+      GPoint& move,
+      uint max_move4_chain_depth,
+      GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool hintVictoryMove4Chain(
+      GPlayer player,
+      GPoint& move,
+      uint move4_chain_depth,
+      GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Лучшая защита от выигрышной цепочки шахов противника
-  GPoint hintBestDefense(GPlayer player, const GPoint& enemy_move4, const GStack<DEF_CELL_COUNT>& variants, int depth);
+  GPoint hintBestDefense(
+      GPlayer player,
+      const GPoint& enemy_move4,
+      const GStack<DEF_CELL_COUNT>& variants,
+      int depth,
+      uint enemy_move4_chain_depth);
 
   //Ход с лучшим весом при отсутствии выигрышных цепочек шахов игрока и угроз противника
   GPoint hintMaxWgt(GPlayer player, int depth);
@@ -176,9 +189,13 @@ protected:
   int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
-  int calcMaxDefenseWgt(GPlayer player, const GStack<DEF_CELL_COUNT>& variants, int depth);
+  int calcMaxDefenseWgt(
+      GPlayer player,
+      const GStack<DEF_CELL_COUNT>& variants,
+      int depth,
+      uint enemy_move4_chain_depth);
   //Вес контршаха для защиты от выигрышной цепочки шахов противника
-  int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth);
+  int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth, uint enemy_move4_chain_depth);
   //Вес хода для защиты от выигрышной цепочки шахов противника
   int calcDefenseWgt(GPlayer player, const GPoint& move, int depth);
 
