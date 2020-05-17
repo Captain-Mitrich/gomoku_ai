@@ -174,6 +174,14 @@ public:
     return cells().back();
   }
 
+  typename Base::reftype operator[](const GPoint& p)
+  {
+    auto& data = Base::ref(p);
+    if (Base::isEmptyItem(data))
+      m_cells.push_back(p);
+    return data;
+  }
+
   typename Base::reftype push(const GPoint& p)
   {
     m_cells.push_back(p);
