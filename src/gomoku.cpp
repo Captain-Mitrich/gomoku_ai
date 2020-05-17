@@ -288,7 +288,7 @@ GPoint Gomoku::hintBestDefense(
       continue;
     int wgt = calcDefenseMove4Wgt(player, move4, depth, enemy_move4_chain_depth);
     if (wgt == WGT_VICTORY)
-      return WGT_VICTORY;
+      return move4;
     if (wgt < max_wgt)
       continue;
     if (wgt > max_wgt)
@@ -306,9 +306,9 @@ GPoint Gomoku::hintBestDefense(
     if (isLine4Move(player, move)) //вариант уже проверен
       continue;
 
-    int wgt = calcDefenseWgt(player, move, depth);
+    int wgt = calcDefenseWgt(player, move, depth, enemy_move4_chain_depth);
     if (wgt == WGT_VICTORY)
-      return wgt;
+      return move;
     if (wgt < max_wgt)
       continue;
     if (wgt > max_wgt)
@@ -406,7 +406,7 @@ int Gomoku::calcWgt(GPlayer player, const GPoint &move, int depth)
     //У противника единственный вариант - блокировать ход 5
     enemy_wgt = calcWgt(!player, getLine5Moves(player).lastCell(), depth - 1);
   }
-  else if (depth == 2 && hintShortestVictoryMove4Chain(player, tmp_move4, getAiLevel() / 2, &defense_variants))
+  else if (depth >= 1 && hintShortestVictoryMove4Chain(player, tmp_move4, (depth == 2) ? (getAiLevel() / 2) : 0, &defense_variants))
     //Противник должен блокировать выигрышную цепочку шахов
     enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth - 1, getAiLevel() / 2);
   else
@@ -573,7 +573,7 @@ int Gomoku::calcMaxDefenseWgt(
     if (depth > min_depth && isLine4Move(player, move)) //вариант уже проверен
       continue;
 
-    int wgt = calcDefenseWgt(player, move, depth);
+    int wgt = calcDefenseWgt(player, move, depth, enemy_move4_chain_depth);
     if (wgt == WGT_VICTORY)
       return wgt;
     if (wgt > max_wgt)
@@ -621,7 +621,7 @@ int Gomoku::calcDefenseMove4Wgt(GPlayer player, const GPoint &move4, int depth, 
       if (depth - 2 > min_depth && isLine4Move(player, player_move))
         player_wgt = calcDefenseMove4Wgt(player, player_move, depth - 2, enemy_move4_chain_depth);
       else
-        player_wgt = calcDefenseWgt(player, player_move, depth - 2);
+        player_wgt = calcDefenseWgt(player, player_move, depth - 2, enemy_move4_chain_depth);
     }
     else if (hintShortestVictoryMove4Chain(!player, tmp_move4, enemy_move4_chain_depth, &defense_variants))
     {
@@ -648,7 +648,7 @@ int Gomoku::calcDefenseMove4Wgt(GPlayer player, const GPoint &move4, int depth, 
   }
 }
 
-int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, int depth)
+int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, int depth, uint enemy_move4_chain_depth)
 {
   assert(isEmptyCell(move));
 
@@ -682,7 +682,7 @@ int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, int depth)
     if (enemy_block_data.line5_moves_count == 1)
     {
       const GPoint& player_block = m_line5_moves[!player].lastCell();
-      int player_wgt = calcDefenseWgt(player, player_block, depth);
+      int player_wgt = calcDefenseWgt(player, player_block, depth, enemy_move4_chain_depth);
       if (player_wgt == WGT_VICTORY || player_wgt == WGT_DEFEAT)
         return player_wgt;
       return wgt - enemy_wgt + player_wgt;
@@ -690,7 +690,7 @@ int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, int depth)
 
     //Если выигрышная цепочка противника не заблокирована,
     //значит ход является проигрышным
-    if (calcMaxMove4ChainWgt(!player, getAiLevel() / 2) == WGT_VICTORY)
+    if (calcMaxMove4ChainWgt(!player, enemy_move4_chain_depth) == WGT_VICTORY)
       return WGT_DEFEAT;
 
     if (depth > 1)
@@ -707,7 +707,7 @@ int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, int depth)
 
   //Если выигрышная цепочка противника не заблокирована,
   //значит ход является проигрышным
-  if (calcMaxMove4ChainWgt(!player, getAiLevel() / 2) == WGT_VICTORY)
+  if (calcMaxMove4ChainWgt(!player, enemy_move4_chain_depth) == WGT_VICTORY)
     return WGT_DEFEAT;
 
   //Уровень сложности позволяет уточнить вес на следующем уровне глубины
@@ -717,8 +717,8 @@ int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, int depth)
     GPoint tmp_move4;
 
     GStack<DEF_CELL_COUNT> defense_variants;
-    if (depth == 2 && hintShortestVictoryMove4Chain(player, tmp_move4, &defense_variants))
-      enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth - 1);
+    if (depth >= 1 && hintShortestVictoryMove4Chain(player, tmp_move4, (depth == 2) ? (getAiLevel() / 2) : 0, &defense_variants))
+      enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth - 1, getAiLevel() / 2);
     else
       enemy_wgt = calcMaxWgt(!player, depth - 1);
     if (enemy_wgt == WGT_VICTORY)

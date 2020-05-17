@@ -197,7 +197,7 @@ protected:
   //Вес контршаха для защиты от выигрышной цепочки шахов противника
   int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth, uint enemy_move4_chain_depth);
   //Вес хода для защиты от выигрышной цепочки шахов противника
-  int calcDefenseWgt(GPlayer player, const GPoint& move, int depth);
+  int calcDefenseWgt(GPlayer player, const GPoint& move, int depth, uint enemy_move4_chain_depth);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
