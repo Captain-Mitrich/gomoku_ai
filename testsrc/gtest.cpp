@@ -168,9 +168,19 @@ public:
     return Gomoku::calcWgt(player, move, depth);
   }
 
+  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0)
+  {
+    return Gomoku::calcMove4ChainWgt(player, move4, depth, defense_variants);
+  }
+
   bool next(GPoint& p) const
   {
     return Gomoku::next(p);
+  }
+
+  int wgt_victory()
+  {
+    return WGT_VICTORY;
   }
 };
 
@@ -661,6 +671,33 @@ void testCalcWgt()
   assert(wgt1 < wgt2);
 }
 
+//Если после очередного хода шах превращается в вилку 4х4,
+//то после отката этого хода вилка также должна откатиться
+//_xxxo
+//X
+//x
+//x
+//o
+void testFrom4x4To4()
+{
+  TestGomoku g;
+
+  g.doMove(7, 7, G_BLACK);
+  g.doMove(8, 7, G_BLACK);
+  g.doMove(9, 7, G_BLACK);
+  g.doMove(10, 7, G_WHITE);
+  g.doMove(6, 10, G_BLACK);
+  g.doMove(6, 11, G_WHITE);
+  g.doMove(6, 9, G_BLACK);
+  g.doMove(6, 8, G_BLACK);
+
+  assert(g.calcMove4ChainWgt(G_BLACK, {6, 7}, 0) == g.wgt_victory());
+
+  g.undo();
+
+  assert(g.calcMove4ChainWgt(G_BLACK, {6, 7}, 0) != g.wgt_victory());
+}
+
 void testHintBestDefense()
 {
   TestGomoku g;
@@ -703,5 +740,6 @@ int main()
   gtest("testSameMaxWgt", testSameMaxWgt);
   gtest("testMaxWgt2", testMaxWgt2);
   gtest("testCalcWgt", testCalcWgt);
+  gtest("testFrom4x4To4", testFrom4x4To4);
   gtest("testHintBestDefense", testHintBestDefense);
 }
