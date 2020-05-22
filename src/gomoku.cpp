@@ -955,6 +955,10 @@ void Gomoku::updateRelatedMovesState()
     backupRelatedMovesState(-vecs1[i], related_move_iter);
     updateRelatedMovesState(vecs1[i]);
   }
+
+  //ищем полушахи (открытые тройки)
+  for (int i = 0; i < 4; ++i)
+    updateOpen3(vecs1[i]);
 }
 
 void Gomoku::updateRelatedMovesState(const GVector& v1)
@@ -1103,6 +1107,167 @@ void Gomoku::updateRelatedMovesState(const GVector& v1)
     if (!isEmptyCell(bp))
       ++counts[get(bp).player];
   }
+}
+
+void Gomoku::updateOpen3(const GVector& v1)
+{
+  const GPoint& last_move = lastCell();
+
+  updateOpen3_xx(last_move, v1);
+  updateOpen3_xx(last_move - v1, v1);
+  updateOpen3_x_x(last_move, v1);
+  updateOpen3_x_x(last_move - v1 - v1, v1);
+}
+
+void Gomoku::updateOpen3_xx(const GPoint &p1, const GVector &v1)
+{
+  //Рассматриваем позицию
+  //53хх46
+  //символом х отмечены ходы p1 и p2 = p1 + v1
+  //Проверяем полушахи в позициях 3, 4, 5, 6
+  //Во всех случаях ходы p1 и p2 должны быть валидными и занятыми одним игроком
+  if (!isValidCell(p1))
+    return;
+  GPoint p2 = p1 + v1;
+  if (!isValidCell(p2))
+    return;
+  assert(p1 == lastCell() || p2 == lastCell());
+  if (get(p1).player != get(p2).player)
+    return;
+  //Во всех случаях ходы 3, 4 должны быть валидными и пустыми
+  GPoint p3 = p1 - v1;
+  if (!isValidCell(p3) || !isEmptyCell(p3))
+    return;
+  GPoint p4 = p2 + v1;
+  if (!isValidCell(p4) || !isEmptyCell(p4))
+    return;
+
+  updateOpen3_Xxx(p1, v1);
+  updateOpen3_Xxx(p2, -v1);
+  updateOpen3_X_xx(p1, v1);
+  updateOpen3_X_xx(p2, -v1);
+}
+
+void Gomoku::updateOpen3_Xxx(const GPoint &p1, const GVector &v1)
+{
+  //рассматриваем позицию
+  //753хх46
+  //ход 3 является полушахом (открытой тройкой) в случаях
+  //__3хх__
+  //о_3хх__
+  //__3хх_о
+  //то есть
+  //1. точки 3, 4 валидны и пусты (уже проверено)
+  //2. точка 5 валидна и пуста
+  //3. точка 6 валидна и пуста или точка 7 валидна и пуста
+  GPoint p3 = p1 - v1;
+  //Не фиксируем ход как полушах, если он является шахом
+  if (isLine4Move(get(p1).player, p3))
+    return;
+  GPoint p5 = p3 - v1;
+  if (!isValidCell(p5) || !isEmptyCell(p5))
+    return;
+  GPoint p6 = p1 + v1 + v1;
+  GPoint p7 = p5 - v1;
+  if (isValidCell(p6) && isEmptyCell(p6) || isValidCell(p7) && isEmptyCell(p7))
+    addOpen3(p3);
+}
+
+void Gomoku::updateOpen3_X_xx(const GPoint &p1, const GVector &v1)
+{
+  //рассматриваем позицию
+  //753хх46
+  //ход 5 является полушахом (открытой тройкой) в случае
+  //_5_хх_
+  //то есть
+  //точки 3, 4 должны быть валидными и пустыми (уже проверено)
+  //точки 5, 6 должны быть валидными и пустыми
+  GPoint p5 = p1 - v1 - v1;
+  if (!isValidCell(p5) || !isEmptyCell(p5))
+    return;
+  //Не фиксируем ход как полушах, если он является шахом
+  if (isLine4Move(get(p1).player, p5))
+    return;
+  GPoint p6 = p1 + v1 * 3;
+  if (!isValidCell(p6) || !isEmptyCell(p6))
+    return;
+  addOpen3(p5);
+}
+
+void Gomoku::updateOpen3_x_x(const GPoint &p1, const GVector &v1)
+{
+  //Рассматриваем позицию
+  //75х3х46
+  //символом х отмечены ходы p1 и p2 = p1 + v1 + v1
+  //Проверяем полушахи в позициях 3, 4, 5
+  //Во всех случаях ход p1 должен быть валидным
+  if (!isValidCell(p1))
+    return;
+  //Во всех случаях ход 3 должен быть валидным и пустым
+  GPoint p3 = p1 + v1;
+  if (!isValidCell(p3) || !isEmptyCell(p3))
+    return;
+  //Ход p2 должен быть валидным
+  GPoint p2 = p3 + v1;
+  if (!isValidCell(p2))
+    return;
+  //Ходы p1, p2 должны быть заняты одним игроком
+  assert(p1 == lastCell() || p2 == lastCell());
+  if (get(p1).player != get(p2).player)
+    return;
+  //Ходы 4, 5 должны быть валидными и пустыми
+  GPoint p4 = p2 + v1;
+  if (!isValidCell(p4) || !isEmptyCell(p4))
+    return;
+  GPoint p5 = p1 - v1;
+  if (!isValidCell(p5) || !isEmptyCell(p5))
+    return;
+
+  updateOpen3_xXx(p1, v1);
+  updateOpen3_Xx_x(p1, v1);
+  updateOpen3_Xx_x(p2, -v1);
+}
+
+void Gomoku::updateOpen3_xXx(const GPoint &p1, const GVector &v1)
+{
+  //рассматриваем позицию
+  //75x3x46
+  //ход 3 является полушахом (открытой тройкой) в случаях
+  //__х3х__
+  //о_х3х__
+  //__х3х_о
+  //то есть
+  //1. точки 3, 4, 5 валидны и пусты (уже проверено)
+  //2. точка 6 валидна и пуста или точка 7 валидна и пуста
+
+  //Не фиксируем ход как полушах, если он является шахом
+  GPoint p3 = p1 + v1;
+  if (isLine4Move(get(p1).player, p3))
+    return;
+
+  GPoint p6 = p1 + v1 * 4;
+  GPoint p7 = p1 - v1;
+  if (isValidCell(p6) && isEmptyCell(p6) || isValidCell(p7) && isEmptyCell(p7))
+    addOpen3(p3);
+}
+
+void Gomoku::updateOpen3_Xx_x(const GPoint &p1, const GVector &v1)
+{
+  //рассматриваем позицию
+  //75x3x4
+  //ход 5 является полушахом (открытой тройкой) в случае
+  //_5х_х_
+  //то есть
+  //1. точки 3, 4, 5 должны быть валидны и пусты (уже проверено)
+  //2. точка 7 валидна и пуста
+  //Не фиксируем ход как полушах, если он является шахом
+  GPoint p5 = p1 - v1;
+  if (isLine4Move(get(p1).player, p5))
+    return;
+  GPoint p7 = p5 - v1;
+  if (!isValidCell(p7) || !isEmptyCell(p7))
+    return;
+  addOpen3(p5);
 }
 
 void Gomoku::backupRelatedMovesState(const GVector& v1, uint& related_moves_iter)
