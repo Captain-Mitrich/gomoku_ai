@@ -155,16 +155,16 @@ protected:
   bool hintLine5(GPlayer player, GPoint& move) const;
   bool hintLine5Block(GPlayer player, GPoint& move) const;
 
-  //Поиск выигрышной цепочки шахов и полушахов
-  bool hintShortestVictoryChain(
+  //Поиск выигрышной цепочки шахов
+  bool hintShortestVictoryMove4Chain(
       GPlayer player,
       GPoint& move,
-      uint max_chain_depth,
+      uint max_move4_chain_depth,
       GStack<DEF_CELL_COUNT>* defense_variants = 0);
-  bool hintVictoryChain(
+  bool hintVictoryMove4Chain(
       GPlayer player,
       GPoint& move,
-      uint chain_depth,
+      uint move4_chain_depth,
       GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Лучшая защита от выигрышной цепочки шахов противника
@@ -182,13 +182,11 @@ protected:
   int calcWgt(GPlayer player, const GPoint& move, int depth);
 
   //Вес лучшей цепочки шахов
-  int calcMaxMove4Wgt(GPlayer player, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  int calcMaxMove4ChainWgt(GPlayer player, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   //Вес лучшей цепочки шахов с заданным начальным шахом
-  int calcMove4Wgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   //Вес блокировки шаха противника в цепочке шахов противника
   int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
-  //Проверка выигрышной открытой тройки
-  bool isVictoryOpen3(GPlayer player, const GPoint& open3, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
@@ -235,7 +233,6 @@ protected:
   void updateOpen3_x_x(const GPoint& p1, const GVector& v1);
   void updateOpen3_xXx(const GPoint& p1, const GVector& v1);
   void updateOpen3_Xx_x(const GPoint& p1, const GVector& v1);
-  void addOpen3(const GPoint& p);
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
   void restoreRelatedMovesState(const GVector& v1, uint& related_moves_iter);
