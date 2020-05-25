@@ -233,6 +233,7 @@ protected:
   void updateOpen3_x_x(const GPoint& p1, const GVector& v1);
   void updateOpen3_xXx(const GPoint& p1, const GVector& v1);
   void updateOpen3_Xx_x(const GPoint& p1, const GVector& v1);
+  void addOpen3(const GPoint& p);
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
   void restoreRelatedMovesState(const GVector& v1, uint& related_moves_iter);

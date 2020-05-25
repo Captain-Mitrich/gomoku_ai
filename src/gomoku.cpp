@@ -1161,9 +1161,6 @@ void Gomoku::updateOpen3_Xxx(const GPoint &p1, const GVector &v1)
   //2. точка 5 валидна и пуста
   //3. точка 6 валидна и пуста или точка 7 валидна и пуста
   GPoint p3 = p1 - v1;
-  //Не фиксируем ход как полушах, если он является шахом
-  if (isLine4Move(get(p1).player, p3))
-    return;
   GPoint p5 = p3 - v1;
   if (!isValidCell(p5) || !isEmptyCell(p5))
     return;
@@ -1184,9 +1181,6 @@ void Gomoku::updateOpen3_X_xx(const GPoint &p1, const GVector &v1)
   //точки 5, 6 должны быть валидными и пустыми
   GPoint p5 = p1 - v1 - v1;
   if (!isValidCell(p5) || !isEmptyCell(p5))
-    return;
-  //Не фиксируем ход как полушах, если он является шахом
-  if (isLine4Move(get(p1).player, p5))
     return;
   GPoint p6 = p1 + v1 * 3;
   if (!isValidCell(p6) || !isEmptyCell(p6))
@@ -1240,15 +1234,10 @@ void Gomoku::updateOpen3_xXx(const GPoint &p1, const GVector &v1)
   //1. точки 3, 4, 5 валидны и пусты (уже проверено)
   //2. точка 6 валидна и пуста или точка 7 валидна и пуста
 
-  //Не фиксируем ход как полушах, если он является шахом
-  GPoint p3 = p1 + v1;
-  if (isLine4Move(get(p1).player, p3))
-    return;
-
   GPoint p6 = p1 + v1 * 4;
   GPoint p7 = p1 - v1;
   if (isValidCell(p6) && isEmptyCell(p6) || isValidCell(p7) && isEmptyCell(p7))
-    addOpen3(p3);
+    addOpen3(p1 + v1);
 }
 
 void Gomoku::updateOpen3_Xx_x(const GPoint &p1, const GVector &v1)
@@ -1260,10 +1249,7 @@ void Gomoku::updateOpen3_Xx_x(const GPoint &p1, const GVector &v1)
   //то есть
   //1. точки 3, 4, 5 должны быть валидны и пусты (уже проверено)
   //2. точка 7 валидна и пуста
-  //Не фиксируем ход как полушах, если он является шахом
   GPoint p5 = p1 - v1;
-  if (isLine4Move(get(p1).player, p5))
-    return;
   GPoint p7 = p5 - v1;
   if (!isValidCell(p7) || !isEmptyCell(p7))
     return;

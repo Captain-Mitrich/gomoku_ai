@@ -3,3 +3,4 @@
 .debug
 .release
 CMakeLists.txt.user
+*.autosave
