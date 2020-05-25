@@ -166,6 +166,17 @@ protected:
       GPoint& move,
       uint move4_chain_depth,
       GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  //Поиск выигрышной цепочки шахов и полушахов
+  bool hintShortestVictoryChain(
+    GPlayer player,
+    GPoint& move,
+    uint max_move4_chain_depth,
+    GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool hintVictoryChain(
+      GPlayer player,
+      GPoint& move,
+      uint chain_depth,
+      GStack<DEF_CELL_COUNT>* defense_variants = 0);
 
   //Лучшая защита от выигрышной цепочки шахов противника
   GPoint hintBestDefense(
@@ -187,6 +198,10 @@ protected:
   int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   //Вес блокировки шаха противника в цепочке шахов противника
   int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  //Является ли шах выигрышным
+  bool isVictoryMove4(GPlayer player, const GPoint& move4, uint depth);
+  //Является ли открытая тройка выигрышной
+  bool isVictoryOpen3(GPlayer player, const GPoint& move, uint depth);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
