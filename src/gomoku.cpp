@@ -271,14 +271,12 @@ bool Gomoku::hintVictoryMove4Chain(
 bool Gomoku::hintShortestVictoryChain(
     GPlayer player,
     GPoint &move,
-    uint max_depth,
-    GStack<DEF_CELL_COUNT> *defense_variants)
+    uint max_depth)
 {
   for (uint depth = 0; depth <= max_depth; ++depth)
   {
-    if (hintVictoryChain(player, move, depth, defense_variants))
+    if (hintVictoryChain(player, move, depth))
       return true;
-    assert(!defense_variants || defense_variants->empty());
   }
   return false;
 }
@@ -286,19 +284,19 @@ bool Gomoku::hintShortestVictoryChain(
 bool Gomoku::hintVictoryChain(
   GPlayer player,
   GPoint &move,
-  uint depth,
-  GStack<DEF_CELL_COUNT>* defense_variants
-  )
+  uint depth)
 {
   const auto& moves4 = m_line4_moves[player];
   for (const auto& move4: moves4.cells())
   {
-    if (isLine4Move(player, move4))
-    {
-      if (!isVictoryMove4(player, move4, depth, defense_variants))
-        continue;
-    }
-    else if (!isVictoryOpen3(player, move4, depth, defense_variants))
+//    if (isLine4Move(player, move4))
+//    {
+//      if (!isVictoryMove4(player, move4, depth))
+//        continue;
+//    }
+//    else if (!isVictoryOpen3(player, move4, depth))
+//      continue;
+    if (!isVictoryMove(player, move4, depth))
       continue;
     move = move4;
     return true;
@@ -464,7 +462,7 @@ int Gomoku::calcWgt(GPlayer player, const GPoint &move, int depth)
   return wgt - enemy_wgt;
 }
 
-int Gomoku::calcMaxMove4ChainWgt(GPlayer player, uint depth, GStack<DEF_CELL_COUNT>* defense_variants)
+int Gomoku::calcMaxMove4ChainWgt(GPlayer player, uint depth, /*GStack<DEF_CELL_COUNT>*/GBaseStack* defense_variants)
 {
   const auto& moves4 = m_line4_moves[player];
   for (const auto& move4: moves4.cells())
@@ -477,7 +475,7 @@ int Gomoku::calcMaxMove4ChainWgt(GPlayer player, uint depth, GStack<DEF_CELL_COU
   return 0;
 }
 
-int Gomoku::calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants)
+int Gomoku::calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, /*GStack<DEF_CELL_COUNT>*/GBaseStack* defense_variants)
 {
   if (!isEmptyCell(move4))
     return 0;
@@ -536,7 +534,7 @@ int Gomoku::calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, G
   return 0;
 }
 
-int Gomoku::calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants)
+int Gomoku::calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, /*GStack<DEF_CELL_COUNT>*/GBaseStack* defense_variants)
 {
   assert(isEmptyCell(block));
   assert(depth > 0);
@@ -578,109 +576,108 @@ int Gomoku::calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStac
   return WGT_DEFEAT;
 }
 
-bool Gomoku::isVictoryMove4(GPlayer player, const GPoint &move4, uint depth)
+bool Gomoku::isVictoryMove(GPlayer player, const GPoint &move, bool forced, uint depth)
 {
-  if (!isEmptyCell(move4))
-    return false;
-  const auto& move4_data = m_line4_moves[player].get(move4);
-  if (!move4_data)
-    return false;
-  const auto& moves5 = move4_data->cells();
-  assert(!moves5.empty());
-  bool is_danger_move4 = false;
-  for (uint i = 0; i < moves5.size(); ++i)
-  {
-    if (!isEmptyCell(moves5[i]))
-      continue;
-    if (is_danger_move4)
-      return true;
-    is_danger_move4 = true;
-  }
-  if (!is_danger_move4)
-    //Все дополнения до линии 5 заблокированы
-    return false;
-
-  if (depth == 0)
-    return false;
-
-  GMoveMaker gmm(this, player, move4);
-
-  const GPoint& enemy_block = getLine5Moves(player).lastCell();
-
-  assert(isEmptyCell(enemy_block));
-
-  GMoveMaker emm(this, !player, enemy_block);
-
-  const auto& block_data = get(enemy_block);
-
-  if (block_data.line5_moves_count > 1)
-    //Блокирующий ход реализует вилку 4х4, поэтому является выигрышным
-    return false;
-
-  if (block_data.line5_moves_count == 1)
-  {
-    //Блокирующий ход является контршахом
-    const GPoint& player_move = getLine5Moves(!player).lastCell();
-    if (isLine4Move(player, player_move))
-      //Блокирующий ход игрока также является контршахом,
-      //поэтому имеем возможность продолжить цепочку шахов противника
-      return isVictoryMove4(player, player_move, depth - 1);
-      enemy_move4_wgt = calcMove4ChainWgt(!player, enemy_move, depth - 1, defense_variants);
-  }
-  else
-    enemy_move4_wgt = calcMaxMove4ChainWgt(!player, depth - 1, defense_variants);
-
-  if (enemy_move4_wgt != WGT_VICTORY)
-    return 0;
-
-  if (defense_variants)
-  {
-    //Если блокировка реализует линию 3 и есть ход, который развивает ее до шаха,
-    //то такой ход нужно отнести к защитным вариантам,
-    //поскольку противник будет вынужден блокировать контршах вместо продолжения атаки
-    for (uint i = 0; i < block_data.m_line4_moves.size(); ++i)
-      defense_variants->push() = block_data.m_line4_moves[i];
-    //Сама блокировка также является защитным вариантом
-    defense_variants->push() = block;
-  }
-  return WGT_DEFEAT;
-}
-
-bool Gomoku::isVictoryOpen3(GPlayer player, const GPoint &move, uint depth)
-{
-  if (depth == 0)
-    return false;
   if (!isEmptyCell(move))
     return false;
-  const auto& move_data = m_line4_moves[player].get(move);
-  if (!move_data || !move_data.m_open3)
+
+  const auto& danger_move_data = m_line4_moves[player].get(move);
+
+  bool is_danger_move4 = false;
+  if (danger_move_data != nullptr)
+  {
+    const auto& moves5 = danger_move_data->cells();
+    for (uint i = 0; i < moves5.size(); ++i)
+    {
+      if (!isEmptyCell(moves5[i]))
+        continue;
+      if (is_danger_move4) //Ход реализует вилку 4х4
+        return true;
+      is_danger_move4 = true;
+    }
+  }
+
+  if (depth == 0)
+    return false;
+
+  if (is_danger_move4)
+  {
+    GMoveMaker gmm(this, player, move);
+
+    return isDefeatMove(!player, getLine5Moves(player).lastCell(), depth);
+  }
+
+  //Продолжаем атаку, если ход является открытой тройкой,
+  //или ход является вынужденным и от предыдущего хода осталась незаблокированная открытая тройка
+  if (!danger_move_data->m_open3 &&
+      (!forced || calcMaxMove4ChainWgt(player, 0) != WGT_VICTORY))
     return false;
 
   GMoveMaker gmm(this, player, move);
 
-  //Ход должен породить угрозу вилки 4х4
-  GStack<4> def_vars;
-  if (!calcMaxMove4ChainWgt(player, 0, &def_vars))
-    return false;
-
-  for (uint i = 0; i < def_vars.size(); ++i)
+  for (uint enemy_move4_chain_depth = 0; enemy_move4_chain_depth <= getAiLevel(); ++enemy_move4_chain_depth)
   {
-    if (isDefenseMove(!player, def_vars[i], depth))
+    if (findDefenseMove4Chain(!player, depth, enemy_move4_chain_depth))
       return false;
   }
 
-  for (uint enemy_move4_depth = 1; enemy_move4_depth <= getAiLevel(); ++enemy_move4_depth)
+  return true;
+}
+
+bool Gomoku::isDefeatMove(GPlayer player, const GPoint& move, uint depth)
+{
+  assert(isEmptyCell(move));
+  assert(depth > 0);
+
+  GMoveMaker gmm(this, player, move);
+  const auto& move_data = get(move);
+
+  if (move_data.line5_moves_count > 1)
+    //Блокирующий ход реализует вилку 4х4, поэтому является выигрышным
+    return true;
+
+  if (move_data.line5_moves_count == 1)
   {
-    //Пробуем контршахи противника
-    const auto& moves4 = m_line4_moves[!player];
-    for (const auto& move4: moves4.cells())
-    {
-      if (isDefenseMove4(!player, move4, depth, enemy_move4_depth))
-        return false;
-    }
+    //Блокирующий ход является контршахом
+    const GPoint& player_move = getLine5Moves(!player).lastCell();
+    return isVictoryMove(player, player_move, true, depth - 1);
   }
 
-  return true;
+  GPoint tmp_move;
+  return hintVictoryChain(!player, tmp_move, depth - 1);
+}
+
+bool Gomoku::findDefenseMove4Chain(GPlayer player, uint depth, uint move4_chain_depth)
+{
+  assert(depth > 0);
+
+  if (move4_chain_depth == 0)
+  {
+    GStack<4> def_vars;
+    if (calcMaxMove4ChainWgt(!player, 0, &def_vars) == WGT_VICTORY)
+    {
+      uint i;
+      for (i = 0; i < def_vars.size(); ++i)
+      {
+        if (isDefeatMove(!player, def_vars[i], depth))
+          return true;
+      }
+    }
+    return false;
+  }
+
+  const auto& moves4 = m_line4_moves[player];
+  for (const auto& move4: moves4.cells())
+  {
+    if (!isLine4Move(player, move4))
+      continue;
+    GMoveMaker gmm(this, player, move4);
+    const auto& move4_data = get(move4);
+
+    if (move_data.line5_moves_count > 1)
+      //Блокирующий ход реализует вилку 4х4, поэтому является выигрышным
+      return true;
+  }
 }
 
 int Gomoku::calcMaxDefenseWgt(

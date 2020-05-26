@@ -36,6 +36,8 @@ protected:
   int wgt[2] = {0, 0};
 };
 
+using GBaseStack = TBaseStack<GPoint>;
+
 template <uint MAXSIZE>
 using GStack = TStack<GPoint, MAXSIZE>;
 
@@ -170,13 +172,11 @@ protected:
   bool hintShortestVictoryChain(
     GPlayer player,
     GPoint& move,
-    uint max_move4_chain_depth,
-    GStack<DEF_CELL_COUNT>* defense_variants = 0);
+    uint max_move4_chain_depth);
   bool hintVictoryChain(
       GPlayer player,
       GPoint& move,
-      uint chain_depth,
-      GStack<DEF_CELL_COUNT>* defense_variants = 0);
+      uint chain_depth);
 
   //Лучшая защита от выигрышной цепочки шахов противника
   GPoint hintBestDefense(
@@ -193,15 +193,28 @@ protected:
   int calcWgt(GPlayer player, const GPoint& move, int depth);
 
   //Вес лучшей цепочки шахов
-  int calcMaxMove4ChainWgt(GPlayer player, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  int calcMaxMove4ChainWgt(GPlayer player, uint depth, /*GStack<stack_size>*/GBaseStack* defense_variants = 0);
+
   //Вес лучшей цепочки шахов с заданным начальным шахом
-  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants = 0);
+
   //Вес блокировки шаха противника в цепочке шахов противника
-  int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
-  //Является ли шах выигрышным
-  bool isVictoryMove4(GPlayer player, const GPoint& move4, uint depth);
-  //Является ли открытая тройка выигрышной
-  bool isVictoryOpen3(GPlayer player, const GPoint& move, uint depth);
+  int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, /*GStack<DEF_CELL_COUNT>*/GBaseStack* defense_variants = 0);
+
+  //Является ли ход выигрышным
+  bool isVictoryMove(GPlayer player, const GPoint& move, bool forced, uint depth);
+
+//  //Является ли шах выигрышным
+//  bool isVictoryMove4(GPlayer player, const GPoint& move4, uint depth);
+
+//  //Является ли открытая тройка выигрышной
+//  bool isVictoryOpen3(GPlayer player, const GPoint& move, uint depth);
+
+  //Блокирует ли ход цепочку шахов и полушахов противника
+  bool isDefeatMove(GPlayer player, const GPoint& move, uint depth);
+
+  //Поиск защитной цепочки шахов в ответ на полушах
+  bool findDefenseMove4Chain(GPlayer player, uint depth, uint move4_chain_depth);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(

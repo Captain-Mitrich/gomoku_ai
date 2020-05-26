@@ -31,8 +31,8 @@ protected:
   uint m_size;
 };
 
-template<typename T, uint MAXSIZE>
-class TStack : public BaseArray
+template<typename T>
+class TBaseStack : public BaseArray
 {
 public:
   T& operator[](uint i)
@@ -55,7 +55,7 @@ public:
 
   T& push()
   {
-    assert(m_size < MAXSIZE);
+    //assert(m_size < MAXSIZE);
     return m_data[m_size++];
   }
 
@@ -71,7 +71,24 @@ public:
   }
 
 protected:
-  T m_data[MAXSIZE];
+  TBaseStack(T* data) : m_data(data)
+  {
+    assert(data);
+  }
+
+protected:
+  T* m_data;
+};
+
+template<typename T, uint MAXSIZE>
+class TStack : public TBaseStack<T>
+{
+public:
+  TStack() : TBaseStack<T>(m_array)
+  {}
+
+protected:
+  T m_array[MAXSIZE];
 };
 
 } //namespace nsg
