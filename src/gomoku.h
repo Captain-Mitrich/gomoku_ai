@@ -121,6 +121,10 @@ using GPointStack = TGridStack<bool, TCleaner<bool>, TCleaner<bool>>;
 class GDangerMoveData
 {
 public:
+  GDangerMoveData(int width, int height, bool open3 = false) : m_moves5(width, height), m_open3(open3)
+  {}
+
+public:
   GPointStack m_moves5;  //Для шаха или вилки шахов храним множество финальных дополнений
   bool m_open3;               //Для открытой тройки храним признак открытой тройки
 };
@@ -274,7 +278,7 @@ protected:
   void updateOpen3_x_x(const GPoint& p1, const GVector& v1);
   void updateOpen3_xXx(const GPoint& p1, const GVector& v1);
   void updateOpen3_Xx_x(const GPoint& p1, const GVector& v1);
-  void addOpen3(const GPoint& p);
+  void addOpen3(const GPoint& move);
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
   void restoreRelatedMovesState(const GVector& v1, uint& related_moves_iter);

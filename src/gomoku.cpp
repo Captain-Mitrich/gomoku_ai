@@ -990,17 +990,17 @@ void Gomoku::addLine4Moves(GPlayer player, const GPoint& move1, const GPoint& mo
   //Одна и та же пара ходов линии 4 может встретиться при одновременной реализации нескольких линий 3
   //(ситуация ххX__х)
   //Нужно избежать дублирования при добавлении
-  else if (!data1->m_line5_moves.isEmptyCell(move2))
+  else if (!data1->m_moves5.isEmptyCell(move2))
   {
-    assert(m_line4_moves[player][move2] && !m_line4_moves[player][move2]->m_line5_moves.isEmptyCell(move1));
+    assert(m_line4_moves[player][move2] && !m_line4_moves[player][move2]->m_moves5.isEmptyCell(move1));
     return;
   }
-  data1->m_line5_moves.push(move2) = true;
+  data1->m_moves5.push(move2) = true;
   auto& data2 = m_line4_moves[player][move2];
   if (!data2)
     data2 = std::make_unique<GDangerMoveData>(width(), height());
-  assert(data2->m_line5_moves.isEmptyCell(move1));
-  data2->m_line5_moves.push(move1) = true;
+  assert(data2->m_moves5.isEmptyCell(move1));
+  data2->m_moves5.push(move1) = true;
   source.pushLine4Moves(move1, move2);
 }
 
@@ -1011,17 +1011,17 @@ void Gomoku::undoLine4Moves(GMoveData& source)
   {
     source.popLine4Moves(move1, move2);
     auto& data2 = m_line4_moves[source.player][*move2];
-    assert(data2 && !data2->m_line5_moves.cells().empty() && data2->m_line5_moves.cells().back() == *move1);
-    data2->m_line5_moves.pop();
-    if (data2->m_line5_moves.cells().empty())
+    assert(data2 && !data2->m_moves5.cells().empty() && data2->m_moves5.cells().back() == *move1);
+    data2->m_moves5.pop();
+    if (data2->m_moves5.cells().empty())
     {
       assert(m_line4_moves[source.player].cells().back() == *move2);
       m_line4_moves[source.player].pop();
     }
     auto& data1 = m_line4_moves[source.player][*move1];
-    assert(data1 && !data1->m_line5_moves.cells().empty() && data1->m_line5_moves.cells().back() == *move2);
-    data1->m_line5_moves.pop();
-    if (data1->m_line5_moves.cells().empty())
+    assert(data1 && !data1->m_moves5.cells().empty() && data1->m_moves5.cells().back() == *move2);
+    data1->m_moves5.pop();
+    if (data1->m_moves5.cells().empty())
     {
       assert(m_line4_moves[source.player].cells().back() == *move1);
       m_line4_moves[source.player].pop();
@@ -1040,7 +1040,7 @@ bool Gomoku::isLine4Move(GPlayer player, const GPoint& move) const
   const auto& moves5 = line4MoveData->m_moves5.cells();
   for (uint i = 0; i < moves5.size(); ++i)
   {
-    if (isEmptyCell(line4MoveData->cells()[i]))
+    if (isEmptyCell(moves5[i]))
       return true;
   }
   return false;
@@ -1448,6 +1448,14 @@ void Gomoku::updateOpen3_Xx_x(const GPoint &p1, const GVector &v1)
   if (!isValidCell(p7) || !isEmptyCell(p7))
     return;
   addOpen3(p5);
+}
+
+void Gomoku::addOpen3(const GPoint &move)
+{
+  auto& data1 = m_line4_moves[lastMovePlayer()][move];
+  if (!data1)
+    data1 = std::make_unique<GDangerMoveData>(width(), height());
+  data1->m_open3 = true;
 }
 
 void Gomoku::backupRelatedMovesState(const GVector& v1, uint& related_moves_iter)
