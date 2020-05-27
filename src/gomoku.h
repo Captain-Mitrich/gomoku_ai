@@ -114,10 +114,18 @@ public:
 
 using GPointStack = TGridStack<bool, TCleaner<bool>, TCleaner<bool>>;
 
-//Каждый ход может реализовать одну линию 4 или вилку из нескольких линий 4
-//Для таких ходов хранится список дополняющих ходов до линии 5
-using GLine4MoveData = GPointStack;
-using GLine4MoveDataPtr = std::unique_ptr<GLine4MoveData>;
+////Каждый ход может реализовать одну линию 4 или вилку из нескольких линий 4
+////Для таких ходов хранится список дополняющих ходов до линии 5
+//using GLine4MoveData = GPointStack;
+
+class GDangerMoveData
+{
+public:
+  GPointStack m_moves5;  //Для шаха или вилки шахов храним множество финальных дополнений
+  bool m_open3;               //Для открытой тройки храним признак открытой тройки
+};
+
+using GDangerMoveDataPtr = std::unique_ptr<GDangerMoveData>;
 
 using GGrid = TGridStack<GMoveData, TCleanerByMethods<GMoveData>>;
 
@@ -214,7 +222,12 @@ protected:
   bool isDefeatMove(GPlayer player, const GPoint& move, uint depth);
 
   //Поиск защитной цепочки шахов в ответ на полушах
-  bool findDefenseMove4Chain(GPlayer player, uint depth, uint move4_chain_depth);
+  bool findDefenseMove4Chain(GPlayer player, uint depth, uint defense_move4_chain_depth);
+
+  //Защищает ли контршах от выигрышной цепочки противника
+  bool isDefenseMove4(GPlayer player, const GPoint& move4, uint depth, uint defense_move4_chain_depth);
+
+  bool isVictoryForcedMove(GPlayer player, const GPoint& move, uint depth, uint defense_move4_chain_depth);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
@@ -317,7 +330,7 @@ protected:
   GLine m_line5;
 
   GPointStack m_line5_moves[2];
-  TGridStack<GLine4MoveDataPtr, TPtrCleaner<GLine4MoveDataPtr>> m_line4_moves[2];
+  TGridStack<GDangerMoveDataPtr, TPtrCleaner<GDangerMoveDataPtr>> m_line4_moves[2];
 };
 
 //raii move maker

@@ -296,7 +296,7 @@ bool Gomoku::hintVictoryChain(
 //    }
 //    else if (!isVictoryOpen3(player, move4, depth))
 //      continue;
-    if (!isVictoryMove(player, move4, depth))
+    if (!isVictoryMove(player, move4, false, depth))
       continue;
     move = move4;
     return true;
@@ -482,7 +482,7 @@ int Gomoku::calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, /
   const auto& move4_data = m_line4_moves[player].get(move4);
   if (!move4_data)
     return 0;
-  const auto& moves5 = move4_data->cells();
+  const auto& moves5 = move4_data->m_moves5.cells();
   assert(!moves5.empty());
   uint move5_count = 0;
   uint move5_pair[2];
@@ -586,7 +586,7 @@ bool Gomoku::isVictoryMove(GPlayer player, const GPoint &move, bool forced, uint
   bool is_danger_move4 = false;
   if (danger_move_data != nullptr)
   {
-    const auto& moves5 = danger_move_data->cells();
+    const auto& moves5 = danger_move_data->m_moves5.cells();
     for (uint i = 0; i < moves5.size(); ++i)
     {
       if (!isEmptyCell(moves5[i]))
@@ -647,11 +647,11 @@ bool Gomoku::isDefeatMove(GPlayer player, const GPoint& move, uint depth)
   return hintVictoryChain(!player, tmp_move, depth - 1);
 }
 
-bool Gomoku::findDefenseMove4Chain(GPlayer player, uint depth, uint move4_chain_depth)
+bool Gomoku::findDefenseMove4Chain(GPlayer player, uint depth, uint defense_move4_chain_depth)
 {
   assert(depth > 0);
 
-  if (move4_chain_depth == 0)
+  if (defense_move4_chain_depth == 0)
   {
     GStack<4> def_vars;
     if (calcMaxMove4ChainWgt(!player, 0, &def_vars) == WGT_VICTORY)
@@ -669,15 +669,68 @@ bool Gomoku::findDefenseMove4Chain(GPlayer player, uint depth, uint move4_chain_
   const auto& moves4 = m_line4_moves[player];
   for (const auto& move4: moves4.cells())
   {
-    if (!isLine4Move(player, move4))
-      continue;
-    GMoveMaker gmm(this, player, move4);
-    const auto& move4_data = get(move4);
-
-    if (move_data.line5_moves_count > 1)
-      //Блокирующий ход реализует вилку 4х4, поэтому является выигрышным
+    if (isDefenseMove4(player, move4, depth, defense_move4_chain_depth))
       return true;
   }
+
+  return false;
+}
+
+bool Gomoku::isDefenseMove4(GPlayer player, const GPoint &move4, uint depth, uint defense_move4_chain_depth)
+{
+  assert(defense_move4_chain_depth > 0);
+
+  if (!isEmptyCell(move4))
+    return false;
+
+  const auto& move4_data = m_line4_moves[player].get(move4);
+
+  if (!move4_data)
+    return false;
+
+  const auto& moves5 = move4_data->m_moves5.cells();
+  bool is_danger_move4 = false;
+  for (uint i = 0; i < moves5.size(); ++i)
+  {
+    if (!isEmptyCell(moves5[i]))
+      continue;
+    if (is_danger_move4) //Ход реализует вилку 4х4, тем самым блокируя атаку противника
+      return true;
+    is_danger_move4 = true;
+  }
+
+  if (!is_danger_move4)
+    return false;
+
+  GMoveMaker gmm(this, player, move4);
+
+  return !isVictoryForcedMove(!player, m_line5_moves[player].lastCell(), depth, defense_move4_chain_depth);
+}
+
+bool Gomoku::isVictoryForcedMove(GPlayer player, const GPoint &move, uint depth, uint defense_move4_chain_depth)
+{
+  assert(defense_move4_chain_depth > 0);
+
+  GMoveMaker gmm(this, player, move);
+
+  const auto& move_data = get(move);
+
+  if (move_data.line5_moves_count > 1)  //Вынужденный ход реализует вилку 4х4, то есть является выигрышным
+    return true;
+
+  if (move_data.line5_moves_count == 1) //Вынужденный ход реализует контршах
+  {
+    const GPoint& enemy_block = m_line5_moves[player].lastCell();
+    if (defense_move4_chain_depth > 1)
+    {
+      //Вынужденный ход игрока должен продолжить защитную цепочку контршахов
+      return !isDefenseMove4(!player, enemy_block, depth, defense_move4_chain_depth - 1);
+    }
+    //Вынужденный ход игрока должен блокировать полушахи противника
+    return !isDefeatMove(!player, enemy_block, depth);
+  }
+
+  return !findDefenseMove4Chain(!player, depth, defense_move4_chain_depth - 1);
 }
 
 int Gomoku::calcMaxDefenseWgt(
@@ -933,21 +986,21 @@ void Gomoku::addLine4Moves(GPlayer player, const GPoint& move1, const GPoint& mo
 {
   auto& data1 = m_line4_moves[player][move1];
   if (!data1)
-    data1 = std::make_unique<GLine4MoveData>(width(), height());
+    data1 = std::make_unique<GDangerMoveData>(width(), height());
   //Одна и та же пара ходов линии 4 может встретиться при одновременной реализации нескольких линий 3
   //(ситуация ххX__х)
   //Нужно избежать дублирования при добавлении
-  else if (!data1->isEmptyCell(move2))
+  else if (!data1->m_line5_moves.isEmptyCell(move2))
   {
-    assert(m_line4_moves[player][move2] && !m_line4_moves[player][move2]->isEmptyCell(move1));
+    assert(m_line4_moves[player][move2] && !m_line4_moves[player][move2]->m_line5_moves.isEmptyCell(move1));
     return;
   }
-  data1->push(move2) = true;
+  data1->m_line5_moves.push(move2) = true;
   auto& data2 = m_line4_moves[player][move2];
   if (!data2)
-    data2 = std::make_unique<GLine4MoveData>(width(), height());
-  assert(data2->isEmptyCell(move1));
-  data2->push(move1) = true;
+    data2 = std::make_unique<GDangerMoveData>(width(), height());
+  assert(data2->m_line5_moves.isEmptyCell(move1));
+  data2->m_line5_moves.push(move1) = true;
   source.pushLine4Moves(move1, move2);
 }
 
@@ -958,17 +1011,17 @@ void Gomoku::undoLine4Moves(GMoveData& source)
   {
     source.popLine4Moves(move1, move2);
     auto& data2 = m_line4_moves[source.player][*move2];
-    assert(data2 && !data2->cells().empty() && data2->cells().back() == *move1);
-    data2->pop();
-    if (data2->cells().empty())
+    assert(data2 && !data2->m_line5_moves.cells().empty() && data2->m_line5_moves.cells().back() == *move1);
+    data2->m_line5_moves.pop();
+    if (data2->m_line5_moves.cells().empty())
     {
       assert(m_line4_moves[source.player].cells().back() == *move2);
       m_line4_moves[source.player].pop();
     }
     auto& data1 = m_line4_moves[source.player][*move1];
-    assert(data1 && !data1->cells().empty() && data1->cells().back() == *move2);
-    data1->pop();
-    if (data1->cells().empty())
+    assert(data1 && !data1->m_line5_moves.cells().empty() && data1->m_line5_moves.cells().back() == *move2);
+    data1->m_line5_moves.pop();
+    if (data1->m_line5_moves.cells().empty())
     {
       assert(m_line4_moves[source.player].cells().back() == *move1);
       m_line4_moves[source.player].pop();
@@ -984,7 +1037,8 @@ bool Gomoku::isLine4Move(GPlayer player, const GPoint& move) const
   if (!line4MoveData)
     return false;
   //ход является ходом линии 4, если для него заданы парные и хотя бы один из них не занят
-  for (uint i = 0; i < line4MoveData->cells().size(); ++i)
+  const auto& moves5 = line4MoveData->m_moves5.cells();
+  for (uint i = 0; i < moves5.size(); ++i)
   {
     if (isEmptyCell(line4MoveData->cells()[i]))
       return true;
