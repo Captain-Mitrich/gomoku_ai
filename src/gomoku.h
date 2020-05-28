@@ -71,6 +71,16 @@ public:
     move1 = &m_line4_moves.pop();
   }
 
+  void pushOpen3(const GPoint& move)
+  {
+    m_open3_moves.push() = move;
+  }
+
+  void popOpen3(GPoint*& move)
+  {
+    move = &m_open3_moves.pop();
+  }
+
 public:
   //новые ходы линий 5
   uint line5_moves_count;
@@ -84,6 +94,9 @@ public:
 
   //новые линии 3, каждая линия 3 представлена парой свободных ходов,
   //каждый такой ход реализует линию 4
+  GStack<RELATED_MOVES_COUNT> m_line4_moves;
+
+
   GStack<RELATED_MOVES_COUNT> m_line4_moves;
 };
 

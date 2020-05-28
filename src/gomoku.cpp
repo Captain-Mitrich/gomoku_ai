@@ -1456,6 +1456,8 @@ void Gomoku::addOpen3(const GPoint &move)
   if (!data1)
     data1 = std::make_unique<GDangerMoveData>(width(), height());
   data1->m_open3 = true;
+
+  ref(lastCell()).addOpen3(move);
 }
 
 void Gomoku::backupRelatedMovesState(const GVector& v1, uint& related_moves_iter)
