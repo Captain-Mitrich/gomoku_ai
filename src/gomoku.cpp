@@ -1015,6 +1015,8 @@ void Gomoku::undoLine4Moves(GMoveData& source)
     data2->m_moves5.pop();
     if (data2->m_moves5.cells().empty())
     {
+      if (m_line4_moves[source.player].cells().back() != *move2)
+        assert(false);
       assert(m_line4_moves[source.player].cells().back() == *move2);
       m_line4_moves[source.player].pop();
     }
@@ -1457,7 +1459,7 @@ void Gomoku::addOpen3(const GPoint &move)
     data1 = std::make_unique<GDangerMoveData>(width(), height());
   data1->m_open3 = true;
 
-  ref(lastCell()).addOpen3(move);
+  ref(lastCell()).pushOpen3(move);
 }
 
 void Gomoku::backupRelatedMovesState(const GVector& v1, uint& related_moves_iter)

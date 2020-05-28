@@ -15,74 +15,6 @@ extern GVector randomV1();
 
 using namespace nsg;
 
-GPoint randomPoint(uint width = 15, uint height = 15)
-{
-  return {random(0, width), random(0, height)};
-}
-
-std::vector<GPoint> getLineMoves(const GLine& line, uint len)
-{
-  std::vector<GPoint> vec(len);
-  GPoint point = line.start;
-  for (uint i = 0; i < len; point += line.v1, ++i)
-    vec[i] = point;
-  return vec;
-}
-
-std::list<GPoint> getShuffledLineMoves(const GLine& line, uint len)
-{
-  auto moves = getLineMoves(line, len);
-  shuffle(moves.begin(), moves.end());
-  std::list<GPoint> mlist;
-  for (const auto& move: moves)
-    mlist.push_back(move);
-  return mlist;
-}
-
-void printMoves(const Gomoku& g)
-{
-  /*for (const auto& move: g.cells())
-  {
-    GPlayer player = g.get(move).player;
-    assert(player == G_BLACK || player == G_WHITE);
-    std::cout << move.x << '/' << move.y << ((player == G_BLACK) ? 'b' : 'w') << "  ";
-  }
-  std::cout << std::endl << std::endl;*/
-}
-
-bool doMove(Gomoku& gomoku, const GPoint& point, GPlayer player)
-{
-  bool res = gomoku.doMove(point, player);
-  if (res)
-    printMoves(gomoku);
-  return res;
-}
-
-bool undo(Gomoku& gomoku)
-{
-  bool res = gomoku.undo();
-  if (res)
-    printMoves(gomoku);
-  return res;
-}
-
-GPoint hint(Gomoku& gomoku, GPlayer player)
-{
-  GPoint p;
-  assert(gomoku.hint(p.x, p.y, player));
-  return p;
-}
-
-using TestFunc = void ();
-
-void gtest(const char* name, TestFunc f, uint count = 1)
-{
-  std::cout << name << std::endl;
-  for (; count > 0; --count)
-    f();
-  std::cout << "OK" << std::endl << std::endl;
-}
-
 class TestGomoku : public Gomoku
 {
 public:
@@ -183,6 +115,74 @@ public:
     return WGT_VICTORY;
   }
 };
+
+GPoint randomPoint(uint width = 15, uint height = 15)
+{
+  return {random(0, width), random(0, height)};
+}
+
+std::vector<GPoint> getLineMoves(const GLine& line, uint len)
+{
+  std::vector<GPoint> vec(len);
+  GPoint point = line.start;
+  for (uint i = 0; i < len; point += line.v1, ++i)
+    vec[i] = point;
+  return vec;
+}
+
+std::list<GPoint> getShuffledLineMoves(const GLine& line, uint len)
+{
+  auto moves = getLineMoves(line, len);
+  shuffle(moves.begin(), moves.end());
+  std::list<GPoint> mlist;
+  for (const auto& move: moves)
+    mlist.push_back(move);
+  return mlist;
+}
+
+void printMoves(const TestGomoku& g)
+{
+  for (const auto& move: g.cells())
+  {
+    GPlayer player = g.get(move).player;
+    assert(player == G_BLACK || player == G_WHITE);
+    std::cout << move.x << '/' << move.y << ((player == G_BLACK) ? 'b' : 'w') << "  ";
+  }
+  std::cout << std::endl << std::endl;
+}
+
+bool doMove(TestGomoku& gomoku, const GPoint& point, GPlayer player)
+{
+  bool res = gomoku.doMove(point, player);
+  if (res)
+    printMoves(gomoku);
+  return res;
+}
+
+bool undo(TestGomoku& gomoku)
+{
+  bool res = gomoku.undo();
+  if (res)
+    printMoves(gomoku);
+  return res;
+}
+
+GPoint hint(Gomoku& gomoku, GPlayer player)
+{
+  GPoint p;
+  assert(gomoku.hint(p.x, p.y, player));
+  return p;
+}
+
+using TestFunc = void ();
+
+void gtest(const char* name, TestFunc f, uint count = 1)
+{
+  std::cout << name << std::endl;
+  for (; count > 0; --count)
+    f();
+  std::cout << "OK" << std::endl << std::endl;
+}
 
 void testEmpty(const TestGomoku& g)
 {
@@ -540,6 +540,27 @@ void testLine5Moves_xxxx()
   assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
 }
 
+//В ситуации, когда игрок реализует два шаха с общим финальным ходом,
+//при откате второго шаха финальный ход должен остаться
+void test5x5()
+{
+  TestGomoku g;
+  g.doMove(7, 7, G_BLACK);
+  g.doMove(8, 7, G_BLACK);
+  g.doMove(9, 7, G_BLACK);
+  g.doMove(11, 7, G_BLACK);
+  g.doMove(10, 8, G_BLACK);
+  g.doMove(10, 9, G_BLACK);
+  g.doMove(10, 10, G_BLACK);
+  g.doMove(10, 11, G_BLACK);
+
+  const auto& line5Moves = g.getLine5Moves(G_BLACK);
+  assert(line5Moves.cells().size() == 1 && line5Moves.cells().front() == GPoint(10, 7));
+
+  g.undo();
+  assert(line5Moves.cells().size() == 1 && line5Moves.cells().front() == GPoint(10, 7));
+}
+
 void testMaxWgt(int depth)
 {
   TestGomoku g;
@@ -735,6 +756,7 @@ int main()
   gtest("testLine5Moves_xx_xx", testLine5Moves_xx_xx, 20);
   gtest("testLine5Moves_xxxx", testLine5Moves_xxxx, 20);
   gtest("testLine5Moves_xxx_xx", testLine5Moves_xxx_xx, 20);
+  gtest("test5x5", test5x5, 1);
   gtest("testMaxWgtDepth0", testMaxWgtDepth0, 10);
   gtest("testMaxWgtDepth2", testMaxWgtDepth2);
   gtest("testSameMaxWgt", testSameMaxWgt);

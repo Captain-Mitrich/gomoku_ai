@@ -96,8 +96,8 @@ public:
   //каждый такой ход реализует линию 4
   GStack<RELATED_MOVES_COUNT> m_line4_moves;
 
-
-  GStack<RELATED_MOVES_COUNT> m_line4_moves;
+  //новые потенциальные открытые тройки
+  GStack<RELATED_MOVES_COUNT> m_open3_moves;
 };
 
 class GMoveData : public GStateBackup
