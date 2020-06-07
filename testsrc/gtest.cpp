@@ -21,747 +21,372 @@ public:
   TestGomoku(int _width = 15, int _height = 15) : Gomoku(_width, _height)
   {}
 
-  const GMoveData& get(const GPoint& move) const
+  void testDoMove();
+
+  void testUndo();
+
+  void testIsGameOver();
+
+  //Обновление и откат пятёрок
+  void testMoves5();
+
+  //Обновление и откат открытых троек
+  void testOpen3();
+
+protected:
+  void testEmpty();
+
+  bool isOpen3(GPlayer player, int x, int y)
   {
-    return Gomoku::get(move);
-  }
-
-  int width() const
-  {
-    return Gomoku::width();
-  }
-
-  int height() const
-  {
-    return Gomoku::height();
-  }
-
-  const std::vector<GPoint>& cells() const
-  {
-    return Gomoku::cells();
-  }
-
-  bool isValidCell(const GPoint& cell)
-  {
-    return Gomoku::isValidCell(cell);
-  }
-
-  bool isEmptyCell(const GPoint& cell) const
-  {
-    return Gomoku::isEmptyCell(cell);
-  }
-
-  const GPointStack& getLine5Moves(GPlayer player) const
-  {
-    return Gomoku::getLine5Moves(player);
-  }
-
-  bool hintLine5(GPlayer player, GPoint& point) const
-  {
-    return Gomoku::hintLine5(player, point);
-  }
-
-  bool hintLine5Block(GPlayer player, GPoint& point) const
-  {
-    return Gomoku::hintLine5Block(player, point);
-  }
-
-  GPoint hintImpl(GPlayer player)
-  {
-    return Gomoku::hintImpl(player);
-  }
-
-  GPoint hintMaxWgt(GPlayer player, int depth)
-  {
-    return Gomoku::hintMaxWgt(player, depth);
-  }
-
-  int calcMaxWgt(GPlayer player, GPoint& max_wgt_move, int depth)
-  {
-    int max_wgt = WGT_DEFEAT;
-
-    auto wgtHandler = [&](const GPoint& move, int wgt)
-    {
-      if (wgt > max_wgt)
-      {
-        max_wgt = wgt;
-        max_wgt_move = move;
-      }
-    };
-
-    GPoint move;
-    findVictoryMove(player, move, depth, wgtHandler);
-
-    return max_wgt;
-  }
-
-  int calcWgt(GPlayer player, const GPoint& move, int depth)
-  {
-    return Gomoku::calcWgt(player, move, depth);
-  }
-
-  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0)
-  {
-    return Gomoku::calcMove4ChainWgt(player, move4, depth, defense_variants);
-  }
-
-  bool next(GPoint& p) const
-  {
-    return Gomoku::next(p);
-  }
-
-  int wgt_victory()
-  {
-    return WGT_VICTORY;
+    const auto& danger_move_data = m_danger_moves[player][{x, y}];
+    return danger_move_data && danger_move_data->m_open3;
   }
 };
 
-GPoint randomPoint(uint width = 15, uint height = 15)
+void TestGomoku::testDoMove()
 {
-  return {random(0, width), random(0, height)};
+  assert(!doMove(-1, -1));
+  assert(doMove(7, 7));
+  assert(get({7, 7}).player == G_BLACK);
+  //ход в занятую точку запрещен
+  assert(!doMove(7, 7));
+  assert(doMove(8, 7));
+  assert(get({8, 7}).player == G_WHITE);
+  assert(doMove(8, 8, G_BLACK));
+  assert(doMove(9, 9, G_BLACK));
+  assert(doMove(10, 10, G_BLACK));
+  assert(!getLine5());
+  assert(doMove(11, 11, G_BLACK));
+  assert(getLine5());
+  //игра окончена, ходы больше делать нельзя
+  assert(!doMove(12, 12, G_BLACK));
 }
 
-std::vector<GPoint> getLineMoves(const GLine& line, uint len)
+void TestGomoku::testUndo()
 {
-  std::vector<GPoint> vec(len);
-  GPoint point = line.start;
-  for (uint i = 0; i < len; point += line.v1, ++i)
-    vec[i] = point;
-  return vec;
+  //Нет ходов для отмены
+  assert(!undo());
+
+  testDoMove();
+  assert(getLine5());
+
+  assert(undo());
+  assert(!getLine5());
+
+  while(undo());
+
+  //После отката всех ходов должны вернуться к исходному состоянию
+  testEmpty();
 }
 
-std::list<GPoint> getShuffledLineMoves(const GLine& line, uint len)
+void TestGomoku::testEmpty()
 {
-  auto moves = getLineMoves(line, len);
-  shuffle(moves.begin(), moves.end());
-  std::list<GPoint> mlist;
-  for (const auto& move: moves)
-    mlist.push_back(move);
-  return mlist;
-}
+  TestGomoku tmp;
 
-void printMoves(const TestGomoku& g)
-{
-  for (const auto& move: g.cells())
+  assert(!getLine5());
+  assert(cells().empty());
+  assert(getLine5Moves(G_BLACK).cells().empty());
+  assert(getLine5Moves(G_WHITE).cells().empty());
+  GPoint p(0, 0);
+  do
   {
-    GPlayer player = g.get(move).player;
-    assert(player == G_BLACK || player == G_WHITE);
-    std::cout << move.x << '/' << move.y << ((player == G_BLACK) ? 'b' : 'w') << "  ";
+    assert(isEmptyCell(p));
+    assert(getLine5Moves(G_BLACK).isEmptyCell(p));
+    assert(getLine5Moves(G_WHITE).isEmptyCell(p));
+    const GMoveData& data = get(p);
+    const GMoveData& tmp_data = tmp.get(p);
+    assert(data.wgt[G_BLACK] == tmp_data.wgt[G_BLACK]);
+    assert(data.wgt[G_WHITE] == tmp_data.wgt[G_WHITE]);
+    assert(data.m_moves5_count == 0);
   }
-  std::cout << std::endl << std::endl;
+  while (next(p));
 }
 
-bool doMove(TestGomoku& gomoku, const GPoint& point, GPlayer player)
+void TestGomoku::testIsGameOver()
 {
-  bool res = gomoku.doMove(point, player);
-  if (res)
-    printMoves(gomoku);
-  return res;
+  assert(!isGameOver());
+  //Окончание игры при выигрыше
+  for (int x = 7; x < 11; ++x)
+  {
+    doMove(x, x, G_BLACK);
+    assert(!isGameOver());
+  }
+  doMove(11, 11, G_BLACK);
+  assert(isGameOver());
+
+  //Окончание игры при отсутствии свободных ячеек
+  TestGomoku g(4, 4);
+  GPoint move(0, 0);
+  do
+  {
+    assert(!g.isGameOver());
+    g.doMove(move);
+    assert(!g.getLine5());
+  }
+  while (g.next(move));
+  assert(g.isGameOver());
 }
 
-bool undo(TestGomoku& gomoku)
+void TestGomoku::testMoves5()
 {
-  bool res = gomoku.undo();
-  if (res)
-    printMoves(gomoku);
-  return res;
+  auto& moves5 = m_line5_moves[G_BLACK];
+  for (int i = 0; i < 4; ++i)
+  {
+    assert(moves5.cells().empty());
+    doMove(7 + i, 7, G_BLACK);
+  }
+  assert(moves5.cells().size() == 2 && !moves5.isEmptyCell({6, 7}) && !moves5.isEmptyCell({11, 7}));
+  //число потенциальных ходов 5 фиксируется в порождающем ходе для возможности отмены
+  assert(get({10, 7}).m_moves5_count == 2);
+
+  undo();
+  //При откате ходы 5 пропадают
+  assert(moves5.cells().empty());
+  assert(get({10, 7}).m_moves5_count == 0);
+
+  //Если ход занят противником, то он не фиксируется как ход 5
+  doMove(11, 7, G_WHITE);
+  doMove(10, 7, G_BLACK);
+  assert(moves5.cells().size() == 1 && moves5.isEmptyCell({11, 7}));
+
+  //Один и тот же ход 5 не фиксируется в разных источниках
+  assert(!moves5.isEmptyCell({6, 7}));
+  doMove(7, 6, G_BLACK);
+  doMove(5, 8, G_BLACK);
+  doMove(8, 5, G_BLACK);
+  doMove(4, 9, G_BLACK);
+  assert(get(lastCell()).m_moves5_count == 0);
+  //При откате ход 5 остается
+  undo();
+  assert(!moves5.isEmptyCell({6, 7}));
 }
 
-GPoint hint(Gomoku& gomoku, GPlayer player)
+void TestGomoku::testOpen3()
 {
-  GPoint p;
-  assert(gomoku.hint(p.x, p.y, player));
-  return p;
+  auto& danger_moves = dangerMoves(G_BLACK);
+
+  doMove(7, 7, G_BLACK);
+  assert(danger_moves.cells().empty());
+
+  doMove(8, 7, G_BLACK);
+  const auto& last_move_data = get({8, 7});
+  assert(last_move_data.m_open3_moves.size() == 4);
+  //xxX
+  assert(isOpen3(G_BLACK, 9, 7));
+  //Xxx
+  assert(isOpen3(G_BLACK, 6, 7));
+  //хх_Х
+  assert(isOpen3(G_BLACK, 10, 7));
+  //Х_хх
+  assert(isOpen3(G_BLACK, 5, 7));
+  assert(danger_moves.cells().size() == 4);
+
+  undo();
+  //При откате открытые тройки пропадают
+  assert(danger_moves.cells().empty());
+  assert(last_move_data.m_open3_moves.empty());
+  doMove(9, 7, G_WHITE);
+  doMove(8, 7, G_BLACK);
+  //Не Хххо
+  //Не ххО
+  //Не Х_ххо
+  //Не ххоХ
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  doMove(10, 7, G_WHITE);
+  doMove(8, 7, G_BLACK);
+  //Ххх_о
+  assert(isOpen3(G_BLACK, 6, 7));
+  //Х_хх_о
+  assert(isOpen3(G_BLACK, 5, 7));
+  //Не ххХо
+  //Не хх_О
+  assert(danger_moves.cells().size() == 2);
+
+  undo();
+  undo();
+  doMove(11, 7, G_WHITE);
+  doMove(5, 7, G_WHITE);
+  doMove(8, 7, G_BLACK);
+  //Не о_ххХ_о
+  //Не оХхх
+  //Не О_хх
+  //Не хх_Хо
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  undo();
+  doMove(11, 7, G_BLACK);
+  doMove(8, 7, G_BLACK);
+  //ххХ_х - шах, но не открытая тройка
+  {
+    const auto& danger_move_data = danger_moves.get({9, 7});
+    assert(danger_move_data && !danger_move_data->m_open3);
+  }
+  //Ххх__х
+  assert(isOpen3(G_BLACK, 6, 7));
+  //хх_Хх - шах, но не открытая тройка
+  {
+    const auto& danger_move_data = danger_moves.get({10, 7});
+    assert(danger_move_data && !danger_move_data->m_open3);
+  }
+  //Х_хх__х
+  assert(isOpen3(G_BLACK, 5, 7));
+
+  undo();
+  undo();
+  undo();
+  doMove(3, 1, G_BLACK);
+  doMove(2, 2, G_BLACK);
+  //Не ххХ|
+  //Не |_Ххх_|
+  //Не |Х_хх
+  assert(danger_moves.cells().empty());
+
+  undo();
+  doMove(4, 0, G_BLACK);
+  //Не Ххх|
+  //Не Х_хх|
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  doMove(7, 7, G_BLACK);
+  assert(danger_moves.cells().empty());
+
+  doMove(5, 5, G_BLACK);
+  //хХх
+  assert(isOpen3(G_BLACK, 6, 6));
+  //x_xX
+  assert(isOpen3(G_BLACK, 8, 8));
+  //Xx_x
+  assert(isOpen3(G_BLACK, 4, 4));
+  assert(danger_moves.cells().size() == 3);
+
+  undo();
+  doMove(4, 4, G_WHITE);
+  doMove(5, 5, G_BLACK);
+  //Не охХх
+  //Не ох_хХ
+  //Не Ох_х
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  doMove(3, 3);
+  doMove(5, 5, G_BLACK);
+  //о_хХх__
+  assert(isOpen3(G_BLACK, 6, 6));
+  //о_x_xX_
+  assert(isOpen3(G_BLACK, 8, 8));
+  //Не оХх_х
+  assert(danger_moves.cells().size() == 2);
+
+  undo();
+  undo();
+  doMove(3, 3, G_WHITE);
+  doMove(9, 9, G_WHITE);
+  doMove(5, 5, G_BLACK);
+  //Не о_хХх_о
+  //Не оХх_х
+  //Не х_хХо
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  undo();
+  undo();
+  doMove(5, 5, G_BLACK);
+  doMove(9, 9, G_BLACK);
+  doMove(7, 7, G_BLACK);
+  //Хх_х_х
+  assert(isOpen3(G_BLACK, 4, 4));
+  //х_х_хХ
+  assert(isOpen3(G_BLACK, 10, 10));
+  //хХх_х - шах, но не открытая тройка
+  {
+    const auto& danger_move_data = danger_moves.get({6, 6});
+    assert(danger_move_data && !danger_move_data->m_open3);
+  }
+  //х_хХх - шах, но не открытая тройка
+  {
+    const auto& danger_move_data = danger_moves.get({8, 8});
+    assert(danger_move_data && !danger_move_data->m_open3);
+  }
+
+  undo();
+  undo();
+  undo();
+  doMove(3, 1);
+  doMove(1, 3);
+  //Не |_xXx_|
+  //Не |Xx_x
+  //Не x_xX|
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  doMove(7, 7, G_BLACK);
+  doMove(7, 10, G_BLACK);
+
+  //хХ_х
+  assert(isOpen3(G_BLACK, 7, 8));
+  //х_Хх
+  assert(isOpen3(G_BLACK, 7, 9));
+
+  undo();
+  doMove(7, 6, G_WHITE);
+  doMove(7, 10, G_BLACK);
+  //Не х_Ххо
+  //Не хХ_хо
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+  undo();
+  doMove(0, 14, G_BLACK);
+  doMove(3, 11, G_BLACK);
+  //Не хХ_х|
+  //Не х_Хх|
+  assert(danger_moves.cells().empty());
+
+  undo();
+  undo();
+
+  //Один и тот же ход, реализующий открытую тройку, не фиксируется в разных источниках
+  doMove(7, 7, G_BLACK);
+  doMove(6, 8, G_BLACK);
+  assert(!danger_moves.isEmptyCell({9, 5}));
+  doMove(10, 6, G_BLACK);
+  doMove(8, 4, G_BLACK);
+  const auto& open3_moves = get({8, 4}).m_open3_moves;
+  assert(open3_moves.size() == 2 && open3_moves[0] != GPoint(9, 5) && open3_moves[1] != GPoint(9, 5));
+  //При откате последнего хода возможность открытой тройки сохраняется
+  undo();
+  assert(!danger_moves.isEmptyCell({9, 5}));
 }
 
-using TestFunc = void ();
+using TestFunc = void (TestGomoku::*)();
 
 void gtest(const char* name, TestFunc f, uint count = 1)
 {
   std::cout << name << std::endl;
+  TestGomoku g;
   for (; count > 0; --count)
-    f();
+    (g.*f)();
   std::cout << "OK" << std::endl << std::endl;
 }
 
-void testEmpty(const TestGomoku& g)
-{
-  TestGomoku tmp;
 
-  assert(!g.getLine5());
-  assert(g.cells().empty());
-  assert(g.getLine5Moves(G_BLACK).cells().empty());
-  assert(g.getLine5Moves(G_WHITE).cells().empty());
-  GPoint p(0, 0);
-  do
-  {
-    assert(g.isEmptyCell(p));
-    assert(g.getLine5Moves(G_BLACK).isEmptyCell(p));
-    assert(g.getLine5Moves(G_WHITE).isEmptyCell(p));
-    const GMoveData& data = g.get(p);
-    const GMoveData& tmp_data = tmp.get(p);
-    assert(data.wgt[G_BLACK] == tmp_data.wgt[G_BLACK]);
-    assert(data.wgt[G_WHITE] == tmp_data.wgt[G_WHITE]);
-    assert(data.line5_moves_count == 0);
-  }
-  while (g.next(p));
-}
-
-//проверяем, что после рестарта игры все данные очищены
-void testStartRandom()
-{
-  TestGomoku g;
-
-  for (int i = 0; i < 10; ++i)
-  {
-    GPoint bp = randomPoint(), wp = randomPoint();
-    GVector bv1 = randomV1(), wv1 = randomV1();
-
-    for (int j = 0; j < 5; ++j, bp += bv1, wp += wv1)
-    {
-      //не все ходы будут сделаны, но это не страшно
-      doMove(g, bp, G_BLACK);
-      doMove(g, wp, G_WHITE);
-    }
-
-    if (g.isGameOver())
-      break;
-  }
-
-  g.start();
-  testEmpty(g);
-}
-
-void testStart()
-{
-  TestGomoku g;
-  doMove(g, {0, 12}, G_BLACK);
-  doMove(g, {11, 13}, G_WHITE);
-  doMove(g, {12, 14}, G_WHITE);
-  doMove(g, {0, 2}, G_BLACK);
-  doMove(g, {11, 8}, G_WHITE);
-  doMove(g, {1, 2}, G_BLACK);
-  doMove(g, {11, 9}, G_WHITE);
-  doMove(g, {2, 2}, G_BLACK);
-  doMove(g, {11, 10}, G_WHITE);
-  doMove(g, {3, 2}, G_BLACK);
-  doMove(g, {11, 11}, G_WHITE);
-  doMove(g, {4, 2}, G_BLACK);
-
-  g.start();
-  testEmpty(g);
-
-  for (int i = 0; i < 20; ++i)
-    testStartRandom();
-}
-
-//проверка окончания игры после установки линии 5
-//и отмены окончания игры после отмены выигрышного хода
-void testGameOverLine5(const GPoint& center, const GPoint& v1)
-{
-  TestGomoku g;
-
-  GPoint lineStart = center;
-  if (!adjustLineStart(lineStart, v1, 5, g.width(), g.height()))
-    return;
-
-  auto moves = getShuffledLineMoves({lineStart, v1}, 5);
-  for (const auto& bmove: moves)
-  {
-    doMove(g, bmove, G_BLACK);
-    if (bmove == moves.back())
-    {
-      assert(g.isGameOver());
-      const GLine* l5 = g.getLine5();
-      assert(l5);
-      int x5, y5;
-      getStartPoint(*l5, x5, y5);
-      for (int i = 0; ; ++i, getNextPoint(*l5, x5, y5))
-      {
-        assert(std::find(moves.begin(), moves.end(), GPoint(x5, y5)) != moves.end());
-        if (i == 4)
-          break;
-      }
-    }
-    else
-    {
-      assert(!g.isGameOver());
-      GPoint wmove;
-      do
-      {
-        wmove = randomPoint();
-      } while (std::find(moves.begin(), moves.end(), wmove) != moves.end());
-      doMove(g, wmove, G_WHITE);
-      assert(!g.isGameOver());
-    }
-  }
-}
-
-void testGameOverLine5()
-{
-  testGameOverLine5(randomPoint(), randomV1());
-}
-
-void testGameOverFullGrid()
-{
-  TestGomoku g(5, 5);
-
-  int size = g.width() * g.height();
-
-  //заполняем сетку с установкой финальной линии последним ходом
-  //xoxox
-  //oxoxo
-  //xoxox
-  //oxoxo
-  //xxoxo
-  GPoint move;
-  for (move.y = 0; move.y < g.height(); ++move.y)
-  {
-    for (move.x = (move.y == g.height() - 1) ? 1 : 0; move.x < g.width(); ++move.x)
-    {
-      assert(g.doMove(move));
-      assert(!g.isGameOver());
-    }
-  }
-  assert(g.doMove(0, 4));
-  assert(g.isGameOver());
-
-  const GLine* l5 = g.getLine5();
-  assert(l5);
-  GPoint p;
-  getStartPoint(*l5, p.x, p.y);
-  for (int i = 0; ; ++i, getNextPoint(*l5, p.x, p.y))
-  {
-    assert(g.get(p).player == G_BLACK);
-    if (i == 4)
-      break;
-  }
-  //откатываем последний ход
-  assert(g.undo());
-  assert(!g.isGameOver() && !g.getLine5());
-  //откатываем еще 3 хода
-  for (int i = 0; i < 3; ++i)
-  {
-    assert(g.undo());
-    assert(!g.isGameOver());
-  }
-  //устанавливаем последние 4 хода так, чтобы избежать линии 5 (oxxxo)
-  assert(g.doMove(0, 4));
-  assert(g.doMove(2, 4));
-  assert(g.doMove(4, 4));
-  assert(g.doMove(3, 4));
-  assert(g.isGameOver() && !g.getLine5());
-}
-
-//тестируем один финальный ход в одной из позиций
-//х ххх, хх хх, ххх х
-void testLine5Moves_xx_xx()
-{
-  GPoint center = randomPoint();
-  GVector v1 = randomV1();
-
-  TestGomoku g;
-
-  const auto& line5Moves = g.getLine5Moves(G_BLACK);
-
-  GPoint hp;
-
-  GPoint lineStart = center;
-  if (!adjustLineStart(lineStart, v1, 5, g.width(), g.height()))
-    return;
-
-  auto moves = getShuffledLineMoves({lineStart, v1}, 5);
-
-  GPoint hole = lineStart + v1 * random(1, 3);
-  moves.erase(std::find(moves.begin(), moves.end(), hole));
-  assert(moves.size() == 4);
-
-  for (const auto& move: moves)
-  {
-    assert(doMove(g, move, G_BLACK));
-    if (move == moves.back())
-    {
-      assert(line5Moves.cells().size() == 1 && line5Moves.cells().front() == hole);
-      assert(hint(g, G_BLACK) == hole);
-      assert(hint(g, G_WHITE) == hole);
-      break;
-    }
-    else
-      assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-  }
-
-  //блокировка финального хода (позиция ххохх)
-  assert(doMove(g, hole, G_WHITE));
-  assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-
-  //отмена блокировки (позиция хх хх)
-  assert(undo(g));
-  assert(line5Moves.cells().size() == 1 && line5Moves.cells().front() == hole);
-  assert(hint(g, G_BLACK) == hole);
-  assert(hint(g, G_WHITE) == hole);
-
-  //отмена позиции хх хх (позиция х  хх или х хх)
-  assert(undo(g));
-  assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-
-  //отсутствие финальных ходов в позиции х охх или хохх
-  assert(doMove(g, hole, G_WHITE));
-  assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-  //отсутствие финальных ходов в позиции хxохх
-  assert(doMove(g, moves.back(), G_BLACK));
-  assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-}
-
-//тестируем один финальный ход, завершающий несколько линий 5
-//(позиция х хххх или хх ххх)
-void testLine5Moves_xxx_xx()
-{
-  TestGomoku g;
-  const auto& line5Moves = g.getLine5Moves(G_BLACK);
-
-  GPoint hp;
-
-  GPoint hole = {7, 7};
-  GVector v1 = randomV1();
-
-  uint part1_len = random(1, 2);
-  auto part1_moves = getShuffledLineMoves({hole - v1 * part1_len, v1}, part1_len);
-
-  uint part2_len = 4 - part1_len;
-  auto part2_moves = getShuffledLineMoves({hole + v1 * 2, v1}, part2_len);
-
-  for (const auto& move: part1_moves)
-  {
-    assert(doMove(g, move, G_BLACK));
-    assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-  }
-
-  for (const auto& move: part2_moves)
-  {
-    assert(doMove(g, move, G_BLACK));
-    assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-  }
-
-  assert(doMove(g, hole + v1, G_BLACK));
-  assert(line5Moves.cells().size() > 0 && !line5Moves.isEmptyCell(hole));
-
-  //блокировка финального хода (позиция ххоххx)
-  assert(doMove(g, hole, G_WHITE));
-  assert(!g.hintLine5(G_BLACK, hp) || hp != hole);
-  assert(!g.hintLine5Block(G_WHITE, hp) || hp != hole);
-
-  //отмена блокировки (позиция хх хх)
-  assert(undo(g));
-  assert(line5Moves.cells().size() > 0 && !line5Moves.isEmptyCell(hole));
-
-  //отмена позиции хх ххх
-  assert(undo(g));
-  assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-}
-
-//тестируем два финальных хода в позиции хххх
-void testLine5Moves_xxxx()
-{
-  GPoint center = randomPoint();
-  GVector v1 = randomV1();
-
-  TestGomoku g;
-
-  const auto& line5Moves = g.getLine5Moves(G_BLACK);
-
-  GPoint hp;
-
-  GPoint lineStart = center;
-  if (!adjustLineStart(lineStart, v1, 4, g.width(), g.height()))
-    return;
-
-  auto moves = getShuffledLineMoves({lineStart, v1}, 4);
-
-  for (const GPoint& move: moves)
-  {
-    assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-    assert(doMove(g, move, G_BLACK));
-  }
-
-  GPoint hole1(lineStart - v1);
-  GPoint hole2(hole1 + v1 * 5);
-
-  if (g.isValidCell(hole1) && g.isValidCell(hole2))
-  {
-    assert(line5Moves.cells().size() == 2 && !line5Moves.isEmptyCell(hole1) && !line5Moves.isEmptyCell(hole2));
-    hp = hint(g, G_BLACK);
-    assert(hp == hole1 || hp == hole2);
-    hp = hint(g, G_WHITE);
-    assert(hp == hole1 || hp == hole2);
-
-    //блокировка одного финального хода (позиция охххх)
-    assert(g.doMove(hole1));
-    assert(g.hintLine5(G_BLACK, hp) && hp == hole2);
-    assert(g.hintLine5Block(G_WHITE, hp) && hp == hole2);
-
-    //блокировка обоих финальных ходов (позиция оххххо)
-    assert(doMove(g, hole2, G_WHITE));
-    assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-
-    //отмена второй блокировки
-    assert(undo(g));
-    assert(g.hintLine5(G_BLACK, hp) && hp == hole2);
-    assert(g.hintLine5Block(G_WHITE, hp) && hp == hole2);
-
-    //отмена первой блокировки
-    assert(undo(g));
-    assert(g.hintLine5(G_BLACK, hp));
-    assert(hp == hole1 || hp == hole2);
-    assert(g.hintLine5Block(G_WHITE, hp));
-    assert(hp == hole1 || hp == hole2);
-  }
-  else if (!g.isValidCell(hole1) && !g.isValidCell(hole2))
-    //линия примыкает к краю поля с двух сторон (/xxxx\)
-    assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-  else
-  {
-    //линия примыкает к краю поля с одной стороны (xxxx|)
-    GPoint& hole = g.isValidCell(hole1) ? hole1 : hole2;
-    assert(hint(g, G_BLACK) == hole);
-    assert(hint(g, G_WHITE) == hole);
-
-    //блокировка финального хода (позиция охххх)
-    assert(g.doMove(hole));
-    assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-
-    //отмена блокировки
-    assert(undo(g));
-    assert(hint(g, G_BLACK) == hole);
-    assert(hint(g, G_WHITE) == hole);
-  }
-
-  //отмена позиции хххх
-  assert(undo(g));
-  assert(!g.hintLine5(G_BLACK, hp) && !g.hintLine5Block(G_WHITE, hp));
-}
-
-//В ситуации, когда игрок реализует два шаха с общим финальным ходом,
-//при откате второго шаха финальный ход должен остаться
-void test5x5()
-{
-  TestGomoku g;
-  g.doMove(7, 7, G_BLACK);
-  g.doMove(8, 7, G_BLACK);
-  g.doMove(9, 7, G_BLACK);
-  g.doMove(11, 7, G_BLACK);
-  g.doMove(10, 8, G_BLACK);
-  g.doMove(10, 9, G_BLACK);
-  g.doMove(10, 10, G_BLACK);
-  g.doMove(10, 11, G_BLACK);
-
-  const auto& line5Moves = g.getLine5Moves(G_BLACK);
-  assert(line5Moves.cells().size() == 1 && line5Moves.cells().front() == GPoint(10, 7));
-
-  g.undo();
-  assert(line5Moves.cells().size() == 1 && line5Moves.cells().front() == GPoint(10, 7));
-}
-
-void testMaxWgt(int depth)
-{
-  TestGomoku g;
-
-  assert(g.doMove(7, 7));
-  assert(g.doMove(8, 8));
-  assert(g.doMove(8, 6));
-
-  GPoint hp = g.hintMaxWgt(G_WHITE, depth);
-  assert(hp.x == 6 && hp.y == 8);
-}
-
-void testMaxWgtDepth0()
-{
-  testMaxWgt(0);
-}
-
-void testMaxWgtDepth2()
-{
-  testMaxWgt(2);
-}
-
-//Проверяем, что при наличии симметричных кандидатов с максимальным весом
-//они предлагаются оба
-void testSameMaxWgt()
-{
-  TestGomoku g;
-
-  assert(doMove(g, {7, 7}, G_BLACK));
-  assert(doMove(g, {8, 6}, G_BLACK));
-
-  GPoint hp;
-  int count1 = 0, count2 = 0;
-  for (int i = 0; i < 100; ++i)
-  {
-    hp = g.hintMaxWgt(G_WHITE, 0);
-    if (hp.x == 9 && hp.y == 5)
-      ++count1;
-    else if (hp.x == 6 && hp.y == 8)
-      ++count2;
-    else
-      assert(false);
-    if (count1 > 0 && count2 > 0)
-      return;
-  }
-  assert(false);
-}
-
-void testMaxWgt2()
-{
-  TestGomoku g;
-
-  g.doMove(7, 7);
-  g.doMove(8, 7);
-  g.doMove(6, 8);
-  g.doMove(5, 9);
-  g.doMove(7, 8);
-  g.doMove(7, 6);
-  g.doMove(6, 5);
-  g.doMove(5, 8);
-  g.doMove(5, 6);
-
-  GPoint hp = g.hintMaxWgt(G_WHITE, 2);
-  assert(hp == GPoint(6, 7) || hp == GPoint(8, 9));
-
-  g.doMove(6, 7);
-
-  hp = g.hintImpl(G_BLACK);
-  assert(hp == GPoint(8, 5) || hp == GPoint(4, 9));
-}
-
-void testCalcWgt()
-{
-  TestGomoku g;
-
-  int black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-
-  g.doMove(7, 7);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(7, 8);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(6, 6);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(5, 5);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(6, 8);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(6, 7);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(4, 6);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(5, 6);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(4, 5);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(5, 7);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(5, 4);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(5, 9);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-  g.doMove(5, 8);
-  black_3_6_wgt = g.get({3, 6}).wgt[G_BLACK];
-
-  int wgt1, wgt1_0, wgt1_1, wgt1_1_0, wgt1_2;
-  int wgt2, wgt2_0, wgt2_1, wgt2_1_0, wgt2_2;
-  wgt1 = g.calcWgt(G_WHITE, GPoint(10, 5), 2);
-  wgt2 = g.calcWgt(G_WHITE, GPoint(4, 7), 2);
-
-  wgt1_0 = g.get(GPoint(10, 5)).wgt[G_WHITE];
-  wgt2_0 = g.get(GPoint(4, 7)).wgt[G_WHITE];
-
-  GPoint max_wgt_move1, max_wgt_move2;
-
-  {
-    GMoveMaker gmm1(&g, G_WHITE, {10, 5});
-    wgt1_1 = g.calcMaxWgt(G_BLACK, max_wgt_move1, 1);
-    wgt1_1_0 = g.get(max_wgt_move1).wgt[G_BLACK];
-    assert(wgt1 == wgt1_0 - wgt1_1);
-  }
-
-  {
-    GMoveMaker gmm2(&g, G_WHITE, {4, 7});
-    wgt2_1 = g.calcMaxWgt(G_BLACK, max_wgt_move2, 1);
-    wgt2_1_0 = g.get(max_wgt_move2).wgt[G_BLACK];
-    assert(wgt2 == wgt2_0 - wgt2_1);
-  }
-
-  assert(wgt1 < wgt2);
-}
-
-//Если после очередного хода шах превращается в вилку 4х4,
-//то после отката этого хода вилка также должна откатиться
-//_xxxo
-//X
-//x
-//x
-//o
-void testFrom4x4To4()
-{
-  TestGomoku g;
-
-  g.doMove(7, 7, G_BLACK);
-  g.doMove(8, 7, G_BLACK);
-  g.doMove(9, 7, G_BLACK);
-  g.doMove(10, 7, G_WHITE);
-  g.doMove(6, 10, G_BLACK);
-  g.doMove(6, 11, G_WHITE);
-  g.doMove(6, 9, G_BLACK);
-  g.doMove(6, 8, G_BLACK);
-
-  assert(g.calcMove4ChainWgt(G_BLACK, {6, 7}, 0) == g.wgt_victory());
-
-  g.undo();
-
-  assert(g.calcMove4ChainWgt(G_BLACK, {6, 7}, 0) != g.wgt_victory());
-}
-
-void testHintBestDefense()
-{
-  TestGomoku g;
-
-  g.setAiLevel(1);
-
-  g.doMove(7, 7);
-  g.doMove(8, 6);
-  g.doMove(7, 5);
-  g.doMove(6, 6);
-  g.doMove(7, 6);
-  g.doMove(7, 8);
-  g.doMove(8, 5);
-  g.doMove(6, 5);
-  g.doMove(7, 4);
-  g.doMove(7, 3);
-  g.doMove(6, 7);
-  g.doMove(5, 8);
-  g.doMove(10, 5);
-  g.doMove(9, 4);
-  g.doMove(10, 7);
-  g.doMove(6, 3);
-  g.doMove(9, 8);
-  g.doMove(9, 5);
-
-  GPoint hp = g.hintImpl(G_BLACK);
-  assert(hp == GPoint(10, 6) || hp == GPoint(6, 2));
-}
 
 int main()
 {
-  gtest("testStart", testStart);
-  gtest("testGameOverLine5", testGameOverLine5, 20);
-  gtest("testGameOverFullGrid", testGameOverFullGrid);
-  gtest("testLine5Moves_xx_xx", testLine5Moves_xx_xx, 20);
-  gtest("testLine5Moves_xxxx", testLine5Moves_xxxx, 20);
-  gtest("testLine5Moves_xxx_xx", testLine5Moves_xxx_xx, 20);
-  gtest("test5x5", test5x5, 1);
-  gtest("testMaxWgtDepth0", testMaxWgtDepth0, 10);
-  gtest("testMaxWgtDepth2", testMaxWgtDepth2);
-  gtest("testSameMaxWgt", testSameMaxWgt);
-  gtest("testMaxWgt2", testMaxWgt2);
-  gtest("testCalcWgt", testCalcWgt);
-  gtest("testFrom4x4To4", testFrom4x4To4);
-  gtest("testHintBestDefense", testHintBestDefense);
+  gtest("testDoMove", &TestGomoku::testDoMove);
+  gtest("testUndo", &TestGomoku::testUndo);
+  gtest("testIsGameOver", &TestGomoku::testIsGameOver);
+  gtest("testMoves5", &TestGomoku::testMoves5);
+  gtest("testOpen3", &TestGomoku::testOpen3);
 }

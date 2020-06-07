@@ -164,6 +164,13 @@ public:
     m_cells.reserve(width * height);
   }
 
+  void clear()
+  {
+    for (auto& cell: m_cells)
+      Base::clearCell(cell);
+    m_cells.clear();
+  }
+
   const std::vector<GPoint>& cells() const
   {
     return m_cells;

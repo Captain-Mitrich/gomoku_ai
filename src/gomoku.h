@@ -44,12 +44,12 @@ using GStack = TStack<GPoint, MAXSIZE>;
 class GStateBackup
 {
 public:
-  GStateBackup() : line5_moves_count(0)
+  GStateBackup() : m_moves5_count(0)
   {}
 
   void addLine5Move()
   {
-    ++line5_moves_count;
+    ++m_moves5_count;
   }
 
   bool emptyLine4Moves()
@@ -83,7 +83,7 @@ public:
 
 public:
   //новые ходы линий 5
-  uint line5_moves_count;
+  uint m_moves5_count;
 
   //максимальное число ячеек, которые лежат на восьми линиях 5,
   //расходящихся из общего центра (ход в центр влияет на веса этих ходов)
@@ -137,6 +137,10 @@ public:
   GDangerMoveData(int width, int height, bool open3 = false) : m_moves5(width, height), m_open3(open3)
   {}
 
+  bool empty()
+  {
+    return m_moves5.cells().empty() && !m_open3;
+  }
 public:
   GPointStack m_moves5;  //Для шаха или вилки шахов храним множество финальных дополнений
   bool m_open3;               //Для открытой тройки храним признак открытой тройки
@@ -150,8 +154,6 @@ class Gomoku : public IGomoku, protected GGrid
 {
 public:
   Gomoku(int _width = DEF_GRID_WIDTH, int _height = DEF_GRID_HEIGHT);
-
-  const GGrid& grid() const;
 
   void start() override;
   bool isValidNextMove(int x, int y) const override;
@@ -285,13 +287,13 @@ protected:
   void updateRelatedMovesState();
   void updateRelatedMovesState(const GVector& v1);
   void updateOpen3(const GVector& v1);
-  void updateOpen3_xx(const GPoint& p1, const GVector& v1);
-  void updateOpen3_Xxx(const GPoint& p1, const GVector& v1);
-  void updateOpen3_X_xx(const GPoint& p1, const GVector& v1);
-  void updateOpen3_x_x(const GPoint& p1, const GVector& v1);
-  void updateOpen3_xXx(const GPoint& p1, const GVector& v1);
-  void updateOpen3_Xx_x(const GPoint& p1, const GVector& v1);
+  void updateOpen3_Xxx(const GPoint& p3, const GVector& v1);
+  void updateOpen3_X_xx(const GPoint& p5, const GVector& v1);
+  void updateOpen3_xXx(const GPoint& p2, const GVector& v1);
+  void updateOpen3_Xx_x(const GPoint& p3, const GVector& v1);
   void addOpen3(const GPoint& move);
+  void undoOpen3(GMoveData& moveData);
+
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
   void restoreRelatedMovesState(const GVector& v1, uint& related_moves_iter);
@@ -347,7 +349,14 @@ protected:
   GLine m_line5;
 
   GPointStack m_line5_moves[2];
-  TGridStack<GDangerMoveDataPtr, TPtrCleaner<GDangerMoveDataPtr>> m_line4_moves[2];
+
+  TGridStack<GDangerMoveDataPtr, TPtrCleaner<GDangerMoveDataPtr>> m_danger_moves[2];
+
+protected:
+  decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)
+  {
+    return m_danger_moves[player];
+  }
 };
 
 //raii move maker
