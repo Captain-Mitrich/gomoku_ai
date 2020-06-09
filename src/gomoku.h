@@ -54,21 +54,21 @@ public:
 
   bool emptyLine4Moves()
   {
-    return m_line4_moves.empty();
+    return m_moves4.empty();
   }
 
   //ходы линий 4 всегда добавляются парами
   //(два свободных хода линии 3)
   void pushLine4Moves(const GPoint& move1, const GPoint& move2)
   {
-    m_line4_moves.push() = move1;
-    m_line4_moves.push() = move2;
+    m_moves4.push() = move1;
+    m_moves4.push() = move2;
   }
 
   void popLine4Moves(const GPoint*& move1, const GPoint*& move2)
   {
-    move2 = &m_line4_moves.pop();
-    move1 = &m_line4_moves.pop();
+    move2 = &m_moves4.pop();
+    move1 = &m_moves4.pop();
   }
 
   void pushOpen3(const GPoint& move)
@@ -94,7 +94,7 @@ public:
 
   //новые линии 3, каждая линия 3 представлена парой свободных ходов,
   //каждый такой ход реализует линию 4
-  GStack<RELATED_MOVES_COUNT> m_line4_moves;
+  GStack<RELATED_MOVES_COUNT> m_moves4;
 
   //новые потенциальные открытые тройки
   GStack<RELATED_MOVES_COUNT> m_open3_moves;
@@ -266,12 +266,12 @@ protected:
   //за которого в данный момент играет ии
   bool isAiDepth(int depth) const;
 
-  void addLine5Move(GPlayer player, const GPoint& line5Move);
-  void removeLine5Move(GPlayer player);
-  bool isLine5Move(GPlayer player, const GPoint& move) const;
-  void addLine4Moves(GPlayer player, const GPoint& move1, const GPoint& move2, GMoveData& source);
-  void undoLine4Moves(GMoveData& source);
-  bool isLine4Move(GPlayer player, const GPoint& move) const;
+  void addMove5(GPlayer player, const GPoint& move5);
+  void removeMove5(GPlayer player);
+  bool isMove5(GPlayer player, const GPoint& move) const;
+  void addMoves4(GPlayer player, const GPoint& move1, const GPoint& move2, GMoveData& source);
+  void undoMoves4(GMoveData& source);
+  bool isDangerMove4(GPlayer player, const GPoint& move) const;
 
   bool buildLine5();
   bool buildLine5(const GVector& v1);

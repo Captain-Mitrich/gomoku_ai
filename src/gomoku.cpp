@@ -81,7 +81,7 @@ bool Gomoku::doMove(const GPoint& move, GPlayer player)
 
   push(move).player = player;
 
-  if (isLine5Move(player, move))
+  if (isMove5(player, move))
     buildLine5();
   else
     updateRelatedMovesState();
@@ -307,7 +307,7 @@ GPoint Gomoku::hintBestDefense(
   const auto& moves4 = dangerMoves(player);
   for (const auto& move4: moves4.cells())
   {
-    if (!isLine4Move(player, move4))
+    if (!isDangerMove4(player, move4))
       continue;
     int wgt = calcDefenseMove4Wgt(player, move4, depth, enemy_move4_chain_depth);
     if (wgt == WGT_VICTORY)
@@ -326,7 +326,7 @@ GPoint Gomoku::hintBestDefense(
   for (uint i = 0; i < variants.size(); ++i)
   {
     const GPoint& move = variants[i];
-    if (isLine4Move(player, move)) //вариант уже проверен
+    if (isDangerMove4(player, move)) //вариант уже проверен
       continue;
 
     int wgt = calcDefenseWgt(player, move, depth, enemy_move4_chain_depth);
@@ -537,7 +537,7 @@ int Gomoku::calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, /*GSt
   {
     //Блокирующий ход является контршахом
     const GPoint& enemy_move = getLine5Moves(player).lastCell();
-    if (isLine4Move(!player, enemy_move))
+    if (isDangerMove4(!player, enemy_move))
       //Блокирующий ход противника также является контршахом,
       //поэтому имеем возможность продолжить цепочку шахов противника
       enemy_move4_wgt = calcMove4ChainWgt(!player, enemy_move, depth - 1, defense_variants);
@@ -553,8 +553,8 @@ int Gomoku::calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, /*GSt
     //Если блокировка реализует линию 3 и есть ход, который развивает ее до шаха,
     //то такой ход нужно отнести к защитным вариантам,
     //поскольку противник будет вынужден блокировать контршах вместо продолжения атаки
-    for (uint i = 0; i < block_data.m_line4_moves.size(); ++i)
-      defense_variants->push() = block_data.m_line4_moves[i];
+    for (uint i = 0; i < block_data.m_moves4.size(); ++i)
+      defense_variants->push() = block_data.m_moves4[i];
     //Сама блокировка также является защитным вариантом
     defense_variants->push() = block;
   }
@@ -734,7 +734,7 @@ int Gomoku::calcMaxDefenseWgt(
     const auto& moves4 = dangerMoves(player);
     for (const auto& move4: moves4.cells())
     {
-      if (!isLine4Move(player, move4))
+      if (!isDangerMove4(player, move4))
         continue;
       int wgt = calcDefenseMove4Wgt(player, move4, depth, enemy_move4_chain_depth);
       if (wgt == WGT_VICTORY)
@@ -748,7 +748,7 @@ int Gomoku::calcMaxDefenseWgt(
   for (uint i = 0; i < variants.size(); ++i)
   {
     const GPoint& move = variants[i];
-    if (depth > min_depth && isLine4Move(player, move)) //вариант уже проверен
+    if (depth > min_depth && isDangerMove4(player, move)) //вариант уже проверен
       continue;
 
     int wgt = calcDefenseWgt(player, move, depth, enemy_move4_chain_depth);
@@ -796,7 +796,7 @@ int Gomoku::calcDefenseMove4Wgt(GPlayer player, const GPoint &move4, int depth, 
     {
       const auto& player_move = m_line5_moves[!player].lastCell();
 
-      if (depth - 2 > min_depth && isLine4Move(player, player_move))
+      if (depth - 2 > min_depth && isDangerMove4(player, player_move))
         player_wgt = calcDefenseMove4Wgt(player, player_move, depth - 2, enemy_move4_chain_depth);
       else
         player_wgt = calcDefenseWgt(player, player_move, depth - 2, enemy_move4_chain_depth);
@@ -951,23 +951,23 @@ bool Gomoku::isAiDepth(int depth) const
   return (depth & 1) == 0;
 }
 
-void Gomoku::addLine5Move(GPlayer player, const GPoint& p)
+void Gomoku::addMove5(GPlayer player, const GPoint& p)
 {
   m_line5_moves[player].push(p) = true;
 }
 
-void Gomoku::removeLine5Move(GPlayer player)
+void Gomoku::removeMove5(GPlayer player)
 {
   assert(!m_line5_moves[player].cells().empty());
   m_line5_moves[player].pop();
 }
 
-bool Gomoku::isLine5Move(GPlayer player, const GPoint& move) const
+bool Gomoku::isMove5(GPlayer player, const GPoint& move) const
 {
   return !m_line5_moves[player].isEmptyCell(move);
 }
 
-void Gomoku::addLine4Moves(GPlayer player, const GPoint& move1, const GPoint& move2, GMoveData& source)
+void Gomoku::addMoves4(GPlayer player, const GPoint& move1, const GPoint& move2, GMoveData& source)
 {
   auto& danger_moves = dangerMoves(player);
 
@@ -991,7 +991,7 @@ void Gomoku::addLine4Moves(GPlayer player, const GPoint& move1, const GPoint& mo
   source.pushLine4Moves(move1, move2);
 }
 
-void Gomoku::undoLine4Moves(GMoveData& source)
+void Gomoku::undoMoves4(GMoveData& source)
 {
   auto& danger_moves = dangerMoves(source.player);
   const GPoint* move1, * move2;
@@ -1017,7 +1017,7 @@ void Gomoku::undoLine4Moves(GMoveData& source)
   }
 }
 
-bool Gomoku::isLine4Move(GPlayer player, const GPoint& move) const
+bool Gomoku::isDangerMove4(GPlayer player, const GPoint& move) const
 {
   if (!isEmptyCell(move))
     return false;
@@ -1263,9 +1263,9 @@ void Gomoku::updateRelatedMovesState(const GVector& v1)
             //если мы рассматриваем линию 4 и ее пустая ячейка уже
             //зафиксирована как завершающий ход другой линии,
             //то рассматриваемая линия уже ничего не меняет
-            if (isLine5Move(player, p))
+            if (isMove5(player, p))
               break;
-            addLine5Move(player, p);
+            addMove5(player, p);
             last_move_data.addLine5Move();
           }
 
@@ -1279,7 +1279,7 @@ void Gomoku::updateRelatedMovesState(const GVector& v1)
             break;
         }
         if (counts[player] == 3)
-          addLine4Moves(player, empty_points[0], empty_points[1], last_move_data);
+          addMoves4(player, empty_points[0], empty_points[1], last_move_data);
       }
     }
 
@@ -1516,9 +1516,9 @@ void Gomoku::restoreRelatedMovesState()
   undoOpen3(last_move_data);
 
   for (; last_move_data.m_moves5_count > 0; --last_move_data.m_moves5_count)
-    removeLine5Move(last_move_data.player);
+    removeMove5(last_move_data.player);
 
-  undoLine4Moves(last_move_data);
+  undoMoves4(last_move_data);
 
   uint related_moves_iter = 0;
 

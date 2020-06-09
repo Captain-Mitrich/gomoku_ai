@@ -30,11 +30,20 @@ public:
   //Обновление и откат пятёрок
   void testMoves5();
 
+  //Обновление и откат четверок (шахов)
+  void testMoves4();
+
   //Обновление и откат открытых троек
   void testOpen3();
 
 protected:
   void testEmpty();
+
+  bool isMove4(GPlayer player, int x, int y)
+  {
+    const auto& danger_move_data = m_danger_moves[player][{x, y}];
+    return danger_move_data && danger_move_data->m_moves5.cells().size() > 0;
+  }
 
   bool isOpen3(GPlayer player, int x, int y)
   {
@@ -159,6 +168,51 @@ void TestGomoku::testMoves5()
   //При откате ход 5 остается
   undo();
   assert(!moves5.isEmptyCell({6, 7}));
+}
+
+void TestGomoku::testMoves4()
+{
+  auto& danger_moves = dangerMoves(G_BLACK);
+
+  doMove(7, 7, G_BLACK);
+  doMove(8, 7, G_BLACK);
+  assert(!isMove4(G_BLACK, 5, 7) && !isMove4(G_BLACK, 6, 7) && !isMove4(G_BLACK, 10, 7) && !isMove4(G_BLACK, 11, 7));
+  doMove(9, 7, G_BLACK);
+  //Следующие ходы являются шахами
+  assert(isDangerMove4(G_BLACK, {5, 7}) && isDangerMove4(G_BLACK, {6, 7}) && isDangerMove4(G_BLACK, {10, 7}) && isDangerMove4(G_BLACK, {11, 7}));
+  const auto& last_move_data = get({9, 7});
+  //В порождающем ходе шахи фиксируются парами
+  assert(last_move_data.m_moves4.size() == 6);
+  const auto& move4_data_57 = danger_moves[{5, 7}];
+  assert(move4_data_57 && move4_data_57->m_moves5.cells().size() == 1 && !move4_data_57->m_moves5.isEmptyCell({6, 7}));
+  const auto& move4_data_67 = danger_moves[{6, 7}];
+  assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 2 && !move4_data_67->m_moves5.isEmptyCell({5, 7}) && !move4_data_67->m_moves5.isEmptyCell({10, 7}));
+
+  doMove(10, 7, G_WHITE);
+  //Ходы (10, 7), (11, 7) остаются зафиксированными в множестве ходов 4 и в порождающем ходе, но перестают быть опасными
+  assert(isDangerMove4(G_BLACK, {5, 7}) && isDangerMove4(G_BLACK, {6, 7}));
+  assert(isMove4(G_BLACK, 10, 7) && !isDangerMove4(G_BLACK, {10, 7}) && isMove4(G_BLACK, 11, 7) && !isDangerMove4(G_BLACK, {11, 7}));
+
+  undo();
+  //При отмене блокирующего хода все ходы 4 снова становятся опасными
+  assert(isDangerMove4(G_BLACK, {5, 7}) && isDangerMove4(G_BLACK, {6, 7}) && isDangerMove4(G_BLACK, {10, 7}) && isDangerMove4(G_BLACK, {11, 7}));
+
+  undo();
+  //При отмене порождающего хода все ходы 4 пропадают
+  assert(!isMove4(G_BLACK, 5, 7) && !isMove4(G_BLACK, 6, 7) && !isMove4(G_BLACK, 10, 7) && !isMove4(G_BLACK, 11, 7));
+  assert(last_move_data.m_moves4.empty());
+
+  //В ситуации ххХ__х нужно избежать дублирования одной и той же пары ходов 4
+  doMove(12, 7, G_BLACK);
+  doMove(9, 7, G_BLACK);
+  assert(last_move_data.m_moves4.size() == 6);
+
+  //Один и тот же ход 4 может быть добавлен разными порождающими ходами с разными парными ходами
+  doMove(6, 8, G_BLACK);
+  doMove(6, 10, G_BLACK);
+  doMove(6, 6, G_BLACK);
+  assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 3 && !move4_data_67->m_moves5.isEmptyCell({6, 9}));
+  assert(get({6, 6}).m_moves4.size() == 2);
 }
 
 void TestGomoku::testOpen3()
@@ -388,5 +442,6 @@ int main()
   gtest("testUndo", &TestGomoku::testUndo);
   gtest("testIsGameOver", &TestGomoku::testIsGameOver);
   gtest("testMoves5", &TestGomoku::testMoves5);
+  gtest("testMoves4", &TestGomoku::testMoves4);
   gtest("testOpen3", &TestGomoku::testOpen3);
 }
