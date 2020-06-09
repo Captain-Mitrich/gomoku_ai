@@ -213,6 +213,9 @@ void TestGomoku::testMoves4()
   doMove(6, 6, G_BLACK);
   assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 3 && !move4_data_67->m_moves5.isEmptyCell({6, 9}));
   assert(get({6, 6}).m_moves4.size() == 2);
+  //При откате этот ход 4 не пропадает, но пропадает один связанный с ним ход 5
+  undo();
+  assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 2 && move4_data_67->m_moves5.isEmptyCell({6, 9}));
 }
 
 void TestGomoku::testOpen3()
