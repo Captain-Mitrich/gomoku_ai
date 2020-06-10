@@ -36,6 +36,9 @@ public:
   //Обновление и откат открытых троек
   void testOpen3();
 
+  void testHintMove5();
+
+  void testHintVictoryMove4Chain();
 protected:
   void testEmpty();
 
@@ -94,14 +97,14 @@ void TestGomoku::testEmpty()
 
   assert(!getLine5());
   assert(cells().empty());
-  assert(getLine5Moves(G_BLACK).cells().empty());
-  assert(getLine5Moves(G_WHITE).cells().empty());
+  assert(m_moves5[G_BLACK].cells().empty());
+  assert(m_moves5[G_WHITE].cells().empty());
   GPoint p(0, 0);
   do
   {
     assert(isEmptyCell(p));
-    assert(getLine5Moves(G_BLACK).isEmptyCell(p));
-    assert(getLine5Moves(G_WHITE).isEmptyCell(p));
+    assert(m_moves5[G_BLACK].isEmptyCell(p));
+    assert(m_moves5[G_WHITE].isEmptyCell(p));
     const GMoveData& data = get(p);
     const GMoveData& tmp_data = tmp.get(p);
     assert(data.wgt[G_BLACK] == tmp_data.wgt[G_BLACK]);
@@ -138,7 +141,7 @@ void TestGomoku::testIsGameOver()
 
 void TestGomoku::testMoves5()
 {
-  auto& moves5 = m_line5_moves[G_BLACK];
+  auto& moves5 = m_moves5[G_BLACK];
   for (int i = 0; i < 4; ++i)
   {
     assert(moves5.cells().empty());
@@ -426,6 +429,29 @@ void TestGomoku::testOpen3()
   assert(!danger_moves.isEmptyCell({9, 5}));
 }
 
+void TestGomoku::testHintMove5()
+{
+  GPoint move5;
+
+  doMove(7, 7, G_BLACK);
+  doMove(8, 7, G_BLACK);
+  doMove(6, 7, G_BLACK);
+  assert(!hintMove5(G_BLACK, move5) && !hintBlock5(G_WHITE, move5));
+
+  doMove(5, 7, G_WHITE);
+  doMove(9, 7, G_BLACK);
+  assert(hintMove5(G_BLACK, move5) && move5 == GPoint(10, 7));
+  assert(hintBlock5(G_WHITE, move5) && move5 == GPoint(10, 7));
+
+  doMove(10, 7, G_WHITE);
+  assert(!hintMove5(G_BLACK, move5) && !hintBlock5(G_WHITE, move5));
+}
+
+void TestGomoku::testHintVictoryMove4Chain()
+{
+
+}
+
 using TestFunc = void (TestGomoku::*)();
 
 void gtest(const char* name, TestFunc f, uint count = 1)
@@ -437,8 +463,6 @@ void gtest(const char* name, TestFunc f, uint count = 1)
   std::cout << "OK" << std::endl << std::endl;
 }
 
-
-
 int main()
 {
   gtest("testDoMove", &TestGomoku::testDoMove);
@@ -447,4 +471,5 @@ int main()
   gtest("testMoves5", &TestGomoku::testMoves5);
   gtest("testMoves4", &TestGomoku::testMoves4);
   gtest("testOpen3", &TestGomoku::testOpen3);
+  gtest("testHintMove5", &TestGomoku::testHintMove5);
 }

@@ -175,14 +175,12 @@ protected:
 
   friend class GMoveMaker;
 
-  const GPointStack& getLine5Moves(GPlayer player) const;
-
   void undoImpl();
 
   GPoint hintImpl(GPlayer player);
   GPoint hintSecondMove() const;
-  bool hintLine5(GPlayer player, GPoint& move) const;
-  bool hintLine5Block(GPlayer player, GPoint& move) const;
+  bool hintMove5(GPlayer player, GPoint& move) const;
+  bool hintBlock5(GPlayer player, GPoint& move) const;
 
   //Поиск выигрышной цепочки шахов
   bool hintShortestVictoryMove4Chain(
@@ -220,22 +218,16 @@ protected:
   int calcWgt(GPlayer player, const GPoint& move, int depth);
 
   //Вес лучшей цепочки шахов
-  int calcMaxMove4ChainWgt(GPlayer player, uint depth, /*GStack<stack_size>*/GBaseStack* defense_variants = 0);
+  bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0);
 
-  //Вес лучшей цепочки шахов с заданным начальным шахом
-  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants = 0);
+  //Поиск выигрышной цепочки шахов с заданным начальным шахом
+  bool findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants = 0);
 
   //Вес блокировки шаха противника в цепочке шахов противника
-  int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, /*GStack<DEF_CELL_COUNT>*/GBaseStack* defense_variants = 0);
+  bool isDefeatBlock5(GPlayer player, const GPoint& block, uint depth, GBaseStack* defense_variants = 0);
 
   //Является ли ход выигрышным
   bool isVictoryMove(GPlayer player, const GPoint& move, bool forced, uint depth);
-
-//  //Является ли шах выигрышным
-//  bool isVictoryMove4(GPlayer player, const GPoint& move4, uint depth);
-
-//  //Является ли открытая тройка выигрышной
-//  bool isVictoryOpen3(GPlayer player, const GPoint& move, uint depth);
 
   //Блокирует ли ход цепочку шахов и полушахов противника
   bool isDefeatMove(GPlayer player, const GPoint& move, uint depth);
@@ -348,7 +340,7 @@ protected:
 
   GLine m_line5;
 
-  GPointStack m_line5_moves[2];
+  GPointStack m_moves5[2];
 
   TGridStack<GDangerMoveDataPtr, TPtrCleaner<GDangerMoveDataPtr>> m_danger_moves[2];
 
