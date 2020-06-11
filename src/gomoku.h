@@ -187,12 +187,12 @@ protected:
       GPlayer player,
       GPoint& move,
       uint max_move4_chain_depth,
-      GStack<DEF_CELL_COUNT>* defense_variants = 0);
+      GBaseStack* defense_variants = 0);
   bool hintVictoryMove4Chain(
       GPlayer player,
       GPoint& move,
       uint move4_chain_depth,
-      GStack<DEF_CELL_COUNT>* defense_variants = 0);
+      GBaseStack* defense_variants = 0);
   //Поиск выигрышной цепочки шахов и полушахов
   bool hintShortestVictoryChain(
     GPlayer player,

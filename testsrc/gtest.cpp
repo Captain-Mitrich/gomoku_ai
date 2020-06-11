@@ -4,16 +4,135 @@
 #include "../src/grandom.h"
 #include <iostream>
 
-namespace nsg
-{
+//namespace nsg
+//{
 
-extern bool adjustLineStart(GPoint& start, const GVector& v1, int lineLen, int width, int height);
+//extern bool adjustLineStart(GPoint& start, const GVector& v1, int lineLen, int width, int height);
 
-extern GVector randomV1();
+//extern GVector randomV1();
 
-}
+//}
 
 using namespace nsg;
+
+class GTestGrid : public GPointStack
+{
+public:
+  GTestGrid() : GPointStack(DEF_GRID_WIDTH, DEF_GRID_HEIGHT)
+  {
+    std::cout << "GTestGrid default constructor" << std::endl;
+  }
+  ~GTestGrid()
+  {
+    std::cout << "GTestGrid destructor" << std::endl;
+  }
+  GTestGrid(const GTestGrid& tg) : GPointStack(tg)
+  {
+    std::cout << "GTestGrid copy constructor" << std::endl;
+  }
+  GTestGrid& operator=(const GTestGrid& tg)
+  {
+    std::cout << "GTestGrid copy operator" << std::endl;
+    GPointStack::operator=(tg);
+    return *this;
+  }
+};
+
+class GTestGridMovable : public GPointStack
+{
+public:
+  GTestGridMovable() : GPointStack(DEF_GRID_WIDTH, DEF_GRID_HEIGHT)
+  {
+    std::cout << "GTestGridMovable default constructor" << std::endl;
+  }
+  ~GTestGridMovable()
+  {
+    std::cout << "GTestGridMovable destructor" << std::endl;
+  }
+  GTestGridMovable(const GTestGridMovable& tg) : GPointStack(tg)
+  {
+    std::cout << "GTestGridMovable copy constructor" << std::endl;
+  }
+  GTestGridMovable& operator=(const GTestGridMovable& tg)
+  {
+    std::cout << "GTestGridMovable copy operator" << std::endl;
+    GPointStack::operator=(tg);
+    return *this;
+  }
+  GTestGridMovable(GTestGridMovable&& tg) : GPointStack(std::move(tg))
+  {
+    std::cout << "GTestGridMovable move constructor" << std::endl;
+  }
+  GTestGridMovable& operator=(GTestGridMovable&& tg)
+  {
+    std::cout << "GTestGridMovable move operator" << std::endl;
+    GPointStack::operator=(std::move(tg));
+    return *this;
+  }
+};
+
+GTestGrid makeGrid(const GBaseStack& stack)
+{
+  GTestGrid res;
+  for (const GPoint& p: stack)
+    res[p] = true;
+  return res;
+}
+
+GTestGridMovable makeGridMovable(const GBaseStack& stack)
+{
+  GTestGridMovable res;
+  for (const GPoint& p: stack)
+    res[p] = true;
+  return res;
+}
+
+void makeGrid(const GBaseStack& stack, GTestGrid& grid)
+{
+  grid.clear();
+  for (const GPoint& p: stack)
+    grid[p] = true;
+}
+
+//По результатам этого теста видно, что RVO работает не во всех случаях,
+//поэтому передача целевого объекта по ссылке хотя и менее удобна, но в общем случае более эффективна,
+//чем возврат по значению
+void testRVO()
+{
+  GStack<8> stack;
+  stack.push() = {7, 7};
+  stack.push() = {8, 7};
+
+  //Вызов с полной оптимизацией (компилятор не создает локальный объект res)
+  std::cout << "GTestGrid grid = makeGrid(stack);" << std::endl;
+  GTestGrid grid = makeGrid(stack);
+  std::cout << std::endl;
+
+  //Вызов с созданием и уничтожением локального объекта res и однократным срабатыванием оператора копирования
+  //При создании и уничтожении локального объекта res выделяется и освобождается память
+  //При копировании выполняется также очистка целевого объекта
+  //(оптимизация не работает)
+  std::cout << "grid = makeGrid(stack);" << std::endl;
+  grid = makeGrid(stack);
+  std::cout << std::endl;
+
+  //Вызов с полной оптимизацией (компилятор не создает локальный объект res)
+  std::cout << "GTestGridMovable gridm = makeGridMovable(stack);" << std::endl;
+  GTestGridMovable gridm = makeGridMovable(stack);
+  std::cout << std::endl;
+
+  //Вызов с созданием и уничтожением локального объекта res и однократным срабатыванием оператора перемещения
+  //(компилятор вызывает оператор перемещения вместо оператора копирования)
+  //При создании и уничтожении локального объекта res выделяется и освобождается память
+  std::cout << "gridm = makeGridMovable(stack);" << std::endl;
+  gridm = makeGridMovable(stack);
+  std::cout << std::endl;
+
+  //Передача по ссылке и очистка целевого объекта внутри функции (эффективно во всех случаях)
+  std::cout << "makeGrid(stack, grid);" << std::endl;
+  makeGrid(stack, grid);
+  std::cout << std::endl;
+}
 
 class TestGomoku : public Gomoku
 {
@@ -449,22 +568,46 @@ void TestGomoku::testHintMove5()
 
 void TestGomoku::testHintVictoryMove4Chain()
 {
+  doMove(7, 7, G_BLACK);
+  doMove(8, 7, G_BLACK);
+  doMove(6, 7, G_BLACK);
 
+  GPoint move4;
+  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 0));
+  assert(move4 == GPoint(5, 7) || move4 == GPoint(9, 7));
+
+  GStack<8> defense_variants;
+  assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
+//  GPointStack grid(width(), height());
+//  grid = makeGrid(defense_variants);
+//  assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({10, 7}));
 }
 
-using TestFunc = void (TestGomoku::*)();
-
+using TestFunc = void();
 void gtest(const char* name, TestFunc f, uint count = 1)
 {
   std::cout << name << std::endl;
-  TestGomoku g;
   for (; count > 0; --count)
-    (g.*f)();
+    f();
+  std::cout << "OK" << std::endl << std::endl;
+}
+
+template<class T>
+using TestMember = void (T::*)();
+
+template<class T>
+void gtest(const char* name, TestMember<T> f, uint count = 1)
+{
+  std::cout << name << std::endl;
+  T obj;
+  for (; count > 0; --count)
+    (obj.*f)();
   std::cout << "OK" << std::endl << std::endl;
 }
 
 int main()
 {
+  gtest("testRVO", testRVO);
   gtest("testDoMove", &TestGomoku::testDoMove);
   gtest("testUndo", &TestGomoku::testUndo);
   gtest("testIsGameOver", &TestGomoku::testIsGameOver);
@@ -472,4 +615,5 @@ int main()
   gtest("testMoves4", &TestGomoku::testMoves4);
   gtest("testOpen3", &TestGomoku::testOpen3);
   gtest("testHintMove5", &TestGomoku::testHintMove5);
+  gtest("testHintVictoryMove4Chain", &TestGomoku::testHintVictoryMove4Chain);
 }

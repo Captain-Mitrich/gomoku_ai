@@ -55,7 +55,6 @@ public:
 
   T& push()
   {
-    //assert(m_size < MAXSIZE);
     return m_data[m_size++];
   }
 
@@ -65,9 +64,14 @@ public:
     return m_data[--m_size];
   }
 
-  const T* data()
+  const T* begin() const
   {
     return m_data;
+  }
+
+  const T* end() const
+  {
+    return m_data + m_size;
   }
 
 protected:

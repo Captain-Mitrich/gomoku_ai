@@ -230,7 +230,7 @@ bool Gomoku::hintShortestVictoryMove4Chain(
     GPlayer player,
     GPoint &move,
     uint max_depth,
-    GStack<DEF_CELL_COUNT> *defense_variants)
+    GBaseStack *defense_variants)
 {
   for (uint depth = 0; depth <= max_depth; ++depth)
   {
@@ -245,7 +245,7 @@ bool Gomoku::hintVictoryMove4Chain(
   GPlayer player,
   GPoint &move,
   uint depth,
-  GStack<DEF_CELL_COUNT>* defense_variants
+  GBaseStack* defense_variants
   )
 {
   const auto& moves4 = dangerMoves(player);
