@@ -125,7 +125,7 @@ public:
   GMoveWgt wgt;
 };
 
-using GPointStack = TGridStack<bool, TCleaner<bool>, TCleaner<bool>>;
+using GPointStack = TGridStack<bool, TCleaner<bool>>;
 
 ////Каждый ход может реализовать одну линию 4 или вилку из нескольких линий 4
 ////Для таких ходов хранится список дополняющих ходов до линии 5
@@ -207,14 +207,14 @@ protected:
   GPoint hintBestDefense(
       GPlayer player,
       const GPoint& enemy_move4,
-      const GStack<DEF_CELL_COUNT>& variants,
+      const GBaseStack& variants,
       int depth,
       uint enemy_move4_chain_depth);
 
   //Ход с лучшим весом при отсутствии выигрышных цепочек шахов игрока и угроз противника
   GPoint hintMaxWgt(GPlayer player, int depth);
 
-  int calcMaxWgt(GPlayer player, int depth);
+  int calcMaxWgt(GPlayer player, int depth, GBaseStack* max_wgt_moves = 0);
   int calcWgt(GPlayer player, const GPoint& move, int depth);
 
   //Вес лучшей цепочки шахов
@@ -242,14 +242,17 @@ protected:
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
-      GPlayer player,
-      const GStack<DEF_CELL_COUNT>& variants,
-      int depth,
-      uint enemy_move4_chain_depth);
+    GPlayer player,
+    const GBaseStack& variants,
+    uint depth,
+    uint enemy_move4_chain_depth,
+    GBaseStack* max_wgt_moves = 0);
+
   //Вес контршаха для защиты от выигрышной цепочки шахов противника
   int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth, uint enemy_move4_chain_depth);
+
   //Вес хода для защиты от выигрышной цепочки шахов противника
-  int calcDefenseWgt(GPlayer player, const GPoint& move, int depth, uint enemy_move4_chain_depth);
+  int calcDefenseWgt(GPlayer player, const GPoint& move, uint depth, uint enemy_move4_chain_depth);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
@@ -278,6 +281,7 @@ protected:
 
   void updateRelatedMovesState();
   void updateRelatedMovesState(const GVector& v1);
+  //void updateMoves4(const GVector& v1);
   void updateOpen3(const GVector& v1);
   void updateOpen3_Xxx(const GPoint& p3, const GVector& v1);
   void updateOpen3_X_xx(const GPoint& p5, const GVector& v1);
@@ -295,40 +299,48 @@ protected:
   int getBlockingMoveWgt(int line_len);
   int getLineWgt(int line_len);
 
-  template<typename PointHandler>
-  bool findMove(GPoint& move, PointHandler pointHandler)
-  {
-    move.x = move.y = 0;
-    do
-    {
-      if (pointHandler(move))
-        return true;
-    }
-    while(next(move));
+//  template<typename PointHandler>
+//  bool findMove(GPoint& move, PointHandler pointHandler)
+//  {
+//    move.x = move.y = 0;
+//    do
+//    {
+//      if (pointHandler(move))
+//        return true;
+//    }
+//    while(next(move));
 
-    return false;
-  }
+//    return false;
+//  }
 
-  template<typename WgtHandler>
-  bool findVictoryMove(GPlayer player, GPoint& move, int depth, WgtHandler wgtHandler)
-  {
-    int wgt;
-    auto moveHandler = [&](const GPoint& move)
-    {
-      if (!isEmptyCell(move))
-        return false;
+//  template<typename WgtHandler>
+//  bool findVictoryMove(GPlayer player, GPoint& move, int depth, WgtHandler wgtHandler)
+//  {
+//    int wgt;
+//    auto moveHandler = [&](const GPoint& move)
+//    {
+//      if (!isEmptyCell(move))
+//        return false;
 
-      wgt = calcWgt(player, move, depth);
+//      wgt = calcWgt(player, move, depth);
 
-      wgtHandler(move, wgt);
+//      wgtHandler(move, wgt);
 
-      return wgt == WGT_VICTORY;
-    };
+//      return wgt == WGT_VICTORY;
+//    };
 
-    return findMove(move, moveHandler);
-  }
+//    return findMove(move, moveHandler);
+//  }
 
   bool next(GPoint& point) const;
+
+  GPointStack& getGrid(uint depth)
+  {
+    assert(depth < MAX_DEPTH);
+    return m_grids[depth];
+  }
+
+  static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);
 
 protected:
   static const GVector vecs1[];  //{1, 0}, {1, 1}, {0, 1}, {-1, 1}
@@ -343,6 +355,12 @@ protected:
   GPointStack m_moves5[2];
 
   TGridStack<GDangerMoveDataPtr, TPtrCleaner<GDangerMoveDataPtr>> m_danger_moves[2];
+
+  const static uint MAX_DEPTH = 10;
+
+  //Эти объекты используются на разной глубине рекурсии
+  //Их нельзя создавать в стэке, поскольку создание является дорогой операцией
+  GPointStack m_grids[MAX_DEPTH];
 
 protected:
   decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)

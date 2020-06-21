@@ -158,6 +158,9 @@ public:
   void testHintMove5();
 
   void testHintVictoryMove4Chain();
+
+  void testHintBestDefense();
+
 protected:
   void testEmpty();
 
@@ -302,9 +305,9 @@ void TestGomoku::testMoves4()
   doMove(9, 7, G_BLACK);
   //Следующие ходы являются шахами
   assert(isDangerMove4(G_BLACK, {5, 7}) && isDangerMove4(G_BLACK, {6, 7}) && isDangerMove4(G_BLACK, {10, 7}) && isDangerMove4(G_BLACK, {11, 7}));
-  const auto& last_move_data = get({9, 7});
+  const auto& move_data_97 = get({9, 7});
   //В порождающем ходе шахи фиксируются парами
-  assert(last_move_data.m_moves4.size() == 6);
+  assert(move_data_97.m_moves4.size() == 6);
   const auto& move4_data_57 = danger_moves[{5, 7}];
   assert(move4_data_57 && move4_data_57->m_moves5.cells().size() == 1 && !move4_data_57->m_moves5.isEmptyCell({6, 7}));
   const auto& move4_data_67 = danger_moves[{6, 7}];
@@ -319,15 +322,22 @@ void TestGomoku::testMoves4()
   //При отмене блокирующего хода все ходы 4 снова становятся опасными
   assert(isDangerMove4(G_BLACK, {5, 7}) && isDangerMove4(G_BLACK, {6, 7}) && isDangerMove4(G_BLACK, {10, 7}) && isDangerMove4(G_BLACK, {11, 7}));
 
+//  doMove(6, 7, G_BLACK);
+//  //Ход (4, 7) является шахом, но он не фиксируется как шах,
+//  //поскольку парный с ним ход (5, 7) является ходом 5
+//  assert(!isMove4(G_BLACK, 4, 7));
+//  assert(get({6, 7}).m_moves4.empty());
+
+//  undo();
   undo();
   //При отмене порождающего хода все ходы 4 пропадают
   assert(!isMove4(G_BLACK, 5, 7) && !isMove4(G_BLACK, 6, 7) && !isMove4(G_BLACK, 10, 7) && !isMove4(G_BLACK, 11, 7));
-  assert(last_move_data.m_moves4.empty());
+  assert(move_data_97.m_moves4.empty());
 
   //В ситуации ххХ__х нужно избежать дублирования одной и той же пары ходов 4
   doMove(12, 7, G_BLACK);
   doMove(9, 7, G_BLACK);
-  assert(last_move_data.m_moves4.size() == 6);
+  assert(move_data_97.m_moves4.size() == 6);
 
   //Один и тот же ход 4 может быть добавлен разными порождающими ходами с разными парными ходами
   doMove(6, 8, G_BLACK);
@@ -338,6 +348,10 @@ void TestGomoku::testMoves4()
   //При откате этот ход 4 не пропадает, но пропадает один связанный с ним ход 5
   undo();
   assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 2 && move4_data_67->m_moves5.isEmptyCell({6, 9}));
+
+  doMove(5, 7);
+  //Ход (6, 7) является ходом 5. При этом он не должен фиксироваться как ход 4
+
 }
 
 void TestGomoku::testOpen3()
@@ -570,17 +584,180 @@ void TestGomoku::testHintVictoryMove4Chain()
 {
   doMove(7, 7, G_BLACK);
   doMove(8, 7, G_BLACK);
+  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
   doMove(6, 7, G_BLACK);
 
   GPoint move4;
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 0));
   assert(move4 == GPoint(5, 7) || move4 == GPoint(9, 7));
 
-  GStack<8> defense_variants;
+  GStack<32> defense_variants;
   assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
-//  GPointStack grid(width(), height());
-//  grid = makeGrid(defense_variants);
-//  assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({10, 7}));
+  auto grid = makeGrid(defense_variants);
+  assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({10, 7}));
+  defense_variants.clear();
+  assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0, &defense_variants));
+  makeGrid(defense_variants, grid);
+  assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({4, 7}));
+
+  doMove(9, 7, G_WHITE);
+  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
+  assert(!findVictoryMove4Chain(G_BLACK, {5, 7}, 0));
+  assert(!findVictoryMove4Chain(G_BLACK, 0));
+
+  undo();
+  doMove(10, 7, G_WHITE);
+  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
+  assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0));
+
+  doMove(10, 6, G_BLACK);
+  doMove(11, 5, G_BLACK);
+  doMove(12, 4, G_BLACK);
+  doMove(13, 3, G_WHITE);
+  doMove(10, 8, G_BLACK);
+  doMove(11, 9, G_BLACK);
+  doMove(12, 10, G_BLACK);
+  doMove(13, 11, G_WHITE);
+  defense_variants.clear();
+  assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
+  //Вилка кратностью больше двух контрится только одним ходом
+  assert(defense_variants.size() == 1 && defense_variants[0] == GPoint(9, 7));
+
+  start();
+  doMove(7, 7, G_BLACK);
+  doMove(8, 7, G_BLACK);
+  doMove(6, 7, G_BLACK);
+  doMove(9, 7, G_WHITE);
+  doMove(5, 5, G_BLACK);
+  doMove(5, 4, G_BLACK);
+  //Мат в два хода
+  defense_variants.clear();
+  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
+  assert(move4 == GPoint(5, 7));
+  assert(defense_variants.size() == 5);
+  makeGrid(defense_variants, grid);
+  assert(
+    grid.cells().size() == 5 &&
+    !grid.isEmptyCell({5, 7}) &&
+    !grid.isEmptyCell({4, 7}) &&
+    !grid.isEmptyCell({5, 3}) &&
+    !grid.isEmptyCell({5, 6}) &&
+    !grid.isEmptyCell({5, 8}));
+
+  doMove(4, 8, G_WHITE);
+  doMove(4, 9, G_WHITE);
+
+  //Тоже мат в два хода, но к списку защитных ходов добавляются ходы,
+  //благодаря которым ответ на первый шах становится контршахом
+  defense_variants.clear();
+  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
+  assert(move4 == GPoint(5, 7));
+  //Защитные ходы могут дублироваться
+  assert(defense_variants.size() >= 9);
+  makeGrid(defense_variants, grid);
+  assert(
+    grid.cells().size() == 9 &&
+    !grid.isEmptyCell({5, 7}) &&
+    !grid.isEmptyCell({4, 7}) &&
+    !grid.isEmptyCell({5, 3}) &&
+    !grid.isEmptyCell({5, 6}) &&
+    !grid.isEmptyCell({5, 8}) &&
+    !grid.isEmptyCell({4, 6}) &&
+    !grid.isEmptyCell({4, 10}) &&
+    !grid.isEmptyCell({4, 5}) &&
+    !grid.isEmptyCell({4, 11}));
+
+  doMove(4, 10, G_WHITE);
+  doMove(4, 11, G_BLACK);
+  //Ответ на первый шах является контршахом,
+  //поэтому мат в два хода невозможен
+  assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 1));
+
+  doMove(3, 7, G_BLACK);
+  doMove(2, 8, G_BLACK);
+  doMove(6, 4, G_WHITE);
+  //Ответ на контршах также является контршахом,
+  //поэтому здесь мат в три хода
+  assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 1));
+  defense_variants.clear();
+  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 2, &defense_variants));
+  assert(move4 == GPoint(5, 7));
+  assert(defense_variants.size() == 7);
+  makeGrid(defense_variants, grid);
+  assert(
+    grid.cells().size() == 7 &&
+    !grid.isEmptyCell({5, 7}) &&
+    !grid.isEmptyCell({4, 7}) &&
+    !grid.isEmptyCell({4, 6}) &&
+    !grid.isEmptyCell({1, 9}) &&
+    !grid.isEmptyCell({5, 3}) &&
+    !grid.isEmptyCell({5, 6}) &&
+    !grid.isEmptyCell({5, 8}));
+
+  undo();
+  undo();
+  undo();
+  undo();
+  doMove(3, 7, G_BLACK);
+  doMove(2, 8, G_BLACK);
+  doMove(6, 4, G_WHITE);
+
+  //Ответ на первый шах является контрматом,
+  //поэтому мат в три хода невозможен
+  assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 2));
+}
+
+void TestGomoku::testHintBestDefense()
+{
+  doMove(7, 7, G_BLACK);
+  doMove(8, 8, G_BLACK);
+  doMove(9, 9, G_BLACK);
+
+  GStack<DEF_CELL_COUNT> defense_variants;
+  defense_variants.push() = {5, 5};
+  defense_variants.push() = {10, 10};
+  defense_variants.push() = {6, 6};
+
+  //Полушах контрится смежными ходами
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) > WGT_DEFEAT);
+  GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0);
+  assert(best_defense == GPoint(6, 6) || best_defense == GPoint(10, 10));
+
+  doMove(6, 8, G_BLACK);
+  doMove(4, 10, G_BLACK);
+  //Вилка 3х3 не контрится
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) == WGT_DEFEAT);
+  assert(hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint(-1, -1));
+
+  doMove(5, 7, G_WHITE);
+  doMove(5, 8, G_WHITE);
+  doMove(5, 10, G_WHITE);
+  doMove(5, 6, G_BLACK);
+  //Нейтрализуем вилку контршахом
+  //Контршахи не рассматриваются как контршахи на глубине 0 при уровне сложности 0
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) == WGT_DEFEAT);
+  //На глубине > 0 контршахи рассматриваются как контршахи
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 1, 0) > WGT_DEFEAT);
+  assert(hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 1, 0) == GPoint(5, 9));
+
+  undo();
+  undo();
+  undo();
+  undo();
+  undo();
+  undo();
+  doMove(7, 10, G_WHITE);
+  doMove(8, 10, G_WHITE);
+  doMove(11, 10, G_WHITE);
+  doMove(11, 9, G_BLACK);
+  doMove(13, 7, G_BLACK);
+  doMove(9, 11, G_BLACK);
+  //Если защитный вариант (в нашем случае 10, 10)является контршахом,
+  //то он рассматривается как защитный вариант
+  //независимо от глубины и уровня сложности
+  assert(isDangerMove4(G_WHITE, {10, 10}));
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) > WGT_DEFEAT);
+  assert(hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint(10, 10));
 }
 
 using TestFunc = void();
@@ -599,9 +776,11 @@ template<class T>
 void gtest(const char* name, TestMember<T> f, uint count = 1)
 {
   std::cout << name << std::endl;
-  T obj;
   for (; count > 0; --count)
+  {
+    T obj;
     (obj.*f)();
+  }
   std::cout << "OK" << std::endl << std::endl;
 }
 
@@ -616,4 +795,5 @@ int main()
   gtest("testOpen3", &TestGomoku::testOpen3);
   gtest("testHintMove5", &TestGomoku::testHintMove5);
   gtest("testHintVictoryMove4Chain", &TestGomoku::testHintVictoryMove4Chain);
+  gtest("testHintBestDefense", &TestGomoku::testHintBestDefense);
 }
