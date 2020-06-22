@@ -948,9 +948,9 @@ int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, uint depth, uint 
     {
       const GPoint& player_block = m_moves5[!player].lastCell();
       int player_wgt = calcDefenseWgt(player, player_block, depth + 2, enemy_move4_chain_depth);
-      TODO special wgt
-      if (player_wgt == WGT_VICTORY || player_wgt == WGT_DEFEAT
-        return player_wgt;
+      //TODO special wgt
+//      if (player_wgt == WGT_VICTORY || player_wgt == WGT_DEFEAT
+//        return player_wgt;
       return wgt - enemy_wgt + player_wgt;
     }
 
@@ -960,18 +960,18 @@ int Gomoku::calcDefenseWgt(GPlayer player, const GPoint& move, uint depth, uint 
     if (findVictoryMove4Chain(!player, enemy_move4_chain_depth, &defense_variants))
     {
       int wgt = calcMaxDefenseWgt(player, defense_variants, depth + 2, enemy_move4_chain_depth);
-      TODO special wgt
+      //TODO special wgt
     }
     //Если в рассмотренной цепочке есть невынужденные ходы противника,
     //а также если достигнута предельная для заданного уровня сложности глубина,
     //то не рассматриваем атаку игрока, а просто возвращаем вес с учетом лучшего хранимого веса
     //Если достигнута предельная глубина или в рассмотренной цепочке есть невынужденные (атакующие) ходы противника,
-    if (depth >= getAiLevel() || !is_enemy_forced)
-      return wgt - enemy_wgt + getBestStoredWgt(player);
+//    if (depth >= getAiLevel() || !is_enemy_forced)
+//      return wgt - enemy_wgt + getBestStoredWgt(player);
 
-    //Угроза противника нейтрализована, поэтому можно рассмотреть атаку игрока
-    int wgt = calcBestAttackWgt(player);
-    TODO special wgt
+//    //Угроза противника нейтрализована, поэтому можно рассмотреть атаку игрока
+//    int wgt = calcBestAttackWgt(player);
+//    TODO special wgt
 
     if (depth > 1)
     {

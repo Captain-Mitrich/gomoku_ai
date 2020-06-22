@@ -221,7 +221,7 @@ void TestGomoku::testEmpty()
   assert(cells().empty());
   assert(m_moves5[G_BLACK].cells().empty());
   assert(m_moves5[G_WHITE].cells().empty());
-  GPoint p(0, 0);
+  GPoint p{0, 0};
   do
   {
     assert(isEmptyCell(p));
@@ -250,7 +250,7 @@ void TestGomoku::testIsGameOver()
 
   //Окончание игры при отсутствии свободных ячеек
   TestGomoku g(4, 4);
-  GPoint move(0, 0);
+  GPoint move{0, 0};
   do
   {
     assert(!g.isGameOver());
@@ -556,7 +556,7 @@ void TestGomoku::testOpen3()
   doMove(10, 6, G_BLACK);
   doMove(8, 4, G_BLACK);
   const auto& open3_moves = get({8, 4}).m_open3_moves;
-  assert(open3_moves.size() == 2 && open3_moves[0] != GPoint(9, 5) && open3_moves[1] != GPoint(9, 5));
+  assert(open3_moves.size() == 2 && open3_moves[0] != (GPoint{9, 5}) && open3_moves[1] != (GPoint{9, 5}));
   //При откате последнего хода возможность открытой тройки сохраняется
   undo();
   assert(!danger_moves.isEmptyCell({9, 5}));
@@ -573,8 +573,8 @@ void TestGomoku::testHintMove5()
 
   doMove(5, 7, G_WHITE);
   doMove(9, 7, G_BLACK);
-  assert(hintMove5(G_BLACK, move5) && move5 == GPoint(10, 7));
-  assert(hintBlock5(G_WHITE, move5) && move5 == GPoint(10, 7));
+  assert(hintMove5(G_BLACK, move5) && move5 == (GPoint{10, 7}));
+  assert(hintBlock5(G_WHITE, move5) && move5 == (GPoint{10, 7}));
 
   doMove(10, 7, G_WHITE);
   assert(!hintMove5(G_BLACK, move5) && !hintBlock5(G_WHITE, move5));
@@ -589,7 +589,7 @@ void TestGomoku::testHintVictoryMove4Chain()
 
   GPoint move4;
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 0));
-  assert(move4 == GPoint(5, 7) || move4 == GPoint(9, 7));
+  assert((move4 == GPoint{5, 7} || move4 == GPoint{9, 7}));
 
   GStack<32> defense_variants;
   assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
@@ -621,7 +621,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   defense_variants.clear();
   assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
   //Вилка кратностью больше двух контрится только одним ходом
-  assert(defense_variants.size() == 1 && defense_variants[0] == GPoint(9, 7));
+  assert((defense_variants.size() == 1 && defense_variants[0] == GPoint{9, 7}));
 
   start();
   doMove(7, 7, G_BLACK);
@@ -633,7 +633,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   //Мат в два хода
   defense_variants.clear();
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
-  assert(move4 == GPoint(5, 7));
+  assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 5);
   makeGrid(defense_variants, grid);
   assert(
@@ -651,7 +651,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   //благодаря которым ответ на первый шах становится контршахом
   defense_variants.clear();
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
-  assert(move4 == GPoint(5, 7));
+  assert((move4 == GPoint{5, 7}));
   //Защитные ходы могут дублироваться
   assert(defense_variants.size() >= 9);
   makeGrid(defense_variants, grid);
@@ -681,7 +681,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 1));
   defense_variants.clear();
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 2, &defense_variants));
-  assert(move4 == GPoint(5, 7));
+  assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 7);
   makeGrid(defense_variants, grid);
   assert(
@@ -721,13 +721,13 @@ void TestGomoku::testHintBestDefense()
   //Полушах контрится смежными ходами
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) > WGT_DEFEAT);
   GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0);
-  assert(best_defense == GPoint(6, 6) || best_defense == GPoint(10, 10));
+  assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
 
   doMove(6, 8, G_BLACK);
   doMove(4, 10, G_BLACK);
   //Вилка 3х3 не контрится
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) == WGT_DEFEAT);
-  assert(hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint(-1, -1));
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{-1, -1}));
 
   doMove(5, 7, G_WHITE);
   doMove(5, 8, G_WHITE);
@@ -738,7 +738,7 @@ void TestGomoku::testHintBestDefense()
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) == WGT_DEFEAT);
   //На глубине > 0 контршахи рассматриваются как контршахи
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 1, 0) > WGT_DEFEAT);
-  assert(hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 1, 0) == GPoint(5, 9));
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 1, 0) == GPoint{5, 9}));
 
   undo();
   undo();
@@ -757,7 +757,7 @@ void TestGomoku::testHintBestDefense()
   //независимо от глубины и уровня сложности
   assert(isDangerMove4(G_WHITE, {10, 10}));
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) > WGT_DEFEAT);
-  assert(hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint(10, 10));
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{10, 10}));
 }
 
 using TestFunc = void();
