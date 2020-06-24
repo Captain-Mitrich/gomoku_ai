@@ -103,18 +103,8 @@ public:
 class GMoveData : public GStateBackup
 {
 public:
-  GMoveData() : player(G_EMPTY)
+  GMoveData(GPlayer _player = G_EMPTY) : player(_player)
   {}
-
-  bool empty() const
-  {
-    return player == G_EMPTY;
-  }
-
-  void clear()
-  {
-    player = G_EMPTY;
-  }
 
 public:
   GPlayer player;
@@ -125,11 +115,24 @@ public:
   GMoveWgt wgt;
 };
 
-using GPointStack = TGridStack<bool, TCleaner<bool>>;
+template <>
+inline bool isEmptyItem(const GMoveData& item, const GMoveData&)
+{
+  return item.player == G_EMPTY;
+}
 
-////Каждый ход может реализовать одну линию 4 или вилку из нескольких линий 4
-////Для таких ходов хранится список дополняющих ходов до линии 5
-//using GLine4MoveData = GPointStack;
+template <>
+inline void clearItem<GMoveData>(GMoveData& item, const GMoveData&)
+{
+  item.player = G_EMPTY;
+}
+
+using GGrid = TGridStack<GMoveData>;
+
+template <>
+const bool default_empty_val<bool> = false;
+
+using GPointStack = TGridStack<bool>;
 
 class GDangerMoveData
 {
@@ -143,12 +146,17 @@ public:
   }
 public:
   GPointStack m_moves5;  //Для шаха или вилки шахов храним множество финальных дополнений
-  bool m_open3;               //Для открытой тройки храним признак открытой тройки
+  bool m_open3;          //Для открытой тройки храним признак открытой тройки
 };
 
 using GDangerMoveDataPtr = std::unique_ptr<GDangerMoveData>;
 
-using GGrid = TGridStack<GMoveData, TCleanerByMethods<GMoveData>>;
+template <class T>
+class TEmptyValType<std::unique_ptr<T>>
+{
+public:
+  using type = std::nullptr_t;
+};
 
 class Gomoku : public IGomoku, protected GGrid
 {
@@ -208,7 +216,7 @@ protected:
       GPlayer player,
       const GPoint& enemy_move4,
       const GBaseStack& variants,
-      int depth,
+      uint depth,
       uint enemy_move4_chain_depth);
 
   //Ход с лучшим весом при отсутствии выигрышных цепочек шахов игрока и угроз противника
@@ -240,26 +248,43 @@ protected:
 
   bool isVictoryForcedMove(GPlayer player, const GPoint& move, uint depth, uint defense_move4_chain_depth);
 
+  int calcMaxAttackWgt(GPlayer player);
+
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
     GPlayer player,
     const GBaseStack& variants,
     uint depth,
     uint enemy_move4_chain_depth,
+    bool is_player_forced,
+    bool is_enemy_forced,
     GBaseStack* max_wgt_moves = 0);
 
   //Вес контршаха для защиты от выигрышной цепочки шахов противника
-  int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth, uint enemy_move4_chain_depth);
+  int calcDefenseMove4Wgt(
+    GPlayer player,
+    const GPoint& move4,
+    const GBaseStack& variants,
+    uint depth,
+    uint enemy_move4_chain_depth,
+    bool is_player_forced,
+    bool is_enemy_forced);
 
   //Вес хода для защиты от выигрышной цепочки шахов противника
-  int calcDefenseWgt(GPlayer player, const GPoint& move, uint depth, uint enemy_move4_chain_depth);
+  int calcDefenseWgt(
+    GPlayer player,
+    const GPoint& move,
+    uint depth,
+    uint enemy_move4_chain_depth,
+    bool is_player_forced,
+    bool is_enemy_forced);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
 
   //На четной глубине ход игрока,
   //за которого в данный момент играет ии
-  bool isAiDepth(int depth) const;
+  bool isAiDepth(uint depth) const;
 
   void addMove5(GPlayer player, const GPoint& move5);
   void removeMove5(GPlayer player);
@@ -340,13 +365,20 @@ protected:
     return m_grids[depth];
   }
 
+  bool isSpecialWgt(int wgt)
+  {
+    return wgt == WGT_VICTORY || wgt == WGT_DEFEAT || wgt == WGT_NEAR_VICTORY || wgt == WGT_NEAR_DEFEAT;
+  }
+
   static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);
 
 protected:
   static const GVector vecs1[];  //{1, 0}, {1, 1}, {0, 1}, {-1, 1}
 
-  static const int WGT_VICTORY = std::numeric_limits<int>::max();
-  static const int WGT_DEFEAT  = std::numeric_limits<int>::min();
+  static const int WGT_VICTORY = std::numeric_limits<int>::max() - 1;
+  static const int WGT_DEFEAT  = -WGT_VICTORY;
+  static const int WGT_NEAR_VICTORY = WGT_VICTORY - 1;
+  static const int WGT_NEAR_DEFEAT = -WGT_NEAR_VICTORY;
 
   uint m_ai_level;
 
@@ -354,7 +386,7 @@ protected:
 
   GPointStack m_moves5[2];
 
-  TGridStack<GDangerMoveDataPtr, TPtrCleaner<GDangerMoveDataPtr>> m_danger_moves[2];
+  TGridStack<GDangerMoveDataPtr/*, TPtrCleaner<GDangerMoveDataPtr>*/> m_danger_moves[2];
 
   const static uint MAX_DEPTH = 10;
 

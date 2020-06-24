@@ -4,7 +4,6 @@
 #include "gpoint.h"
 #include "assert.h"
 #include <vector>
-#include <forward_list>
 #include <list>
 
 namespace nsg
@@ -48,76 +47,63 @@ protected:
   int m_height;
 };
 
-template<typename T>
-class TVectorInitializer
+//Обычно тип пустого значения совпадает с типом непустого значения
+//Если требуется иное, нужна специализация
+template <typename T>
+class TEmptyValType
 {
 public:
-  static void init(std::vector<T>& vec, size_t size)
-  {
-    vec.resize(size);
-  }
+  using type = T;
 };
 
-template<typename T, typename TEmpty = T>
-class TCleaner
+//Обычно дефолтное пустое значение получается с помощью конструктора без параметров
+//Если требуется иное, нужна специализация
+template <typename T>
+static const typename TEmptyValType<T>::type default_empty_val = typename TEmptyValType<T>::type();
+
+//Обычно проверка на пустоту делается путем сравнения с пустым значением
+//Если требуется иное, нужна специализация
+template <typename T>
+bool isEmptyItem(const T& item, const typename TEmptyValType<T>::type& empty_val)
 {
-public:
-  static void init(std::vector<T>& vec, size_t size)
-  {
-    vec.resize(size, empty_val);
-  }
+  return item == empty_val;
+}
 
-  static bool empty(const T& item)
-  {
-    return item == empty_val;
-  }
+template <typename T>
+using reftype = typename std::vector<T>::reference;
 
-  static void clear(typename std::vector<T>::reference item)
-  {
-    item = empty_val;
-  }
+template <typename T>
+using creftype = typename std::vector<T>::const_reference;
 
-protected:
-  static const TEmpty empty_val;
-};
-
-template<typename T, typename TEmpty>
-const TEmpty TCleaner<T, TEmpty>::empty_val = TEmpty();
-
-template<typename TPtr>
-using TPtrCleaner = TCleaner<TPtr, std::nullptr_t>;
-
-template<typename T>
-class TCleanerByMethods
+//Обычно очистка делается путем присвоения с пустого значения
+//Если требуется иное, нужна специализация
+template <typename T>
+void clearItem(reftype<T> item, const typename TEmptyValType<T>::type& empty_val)
 {
-public:
-  static bool empty(const T& item)
-  {
-    return item.empty();
-  }
+  item = empty_val;
+}
 
-  static void clear(T& item)
-  {
-    item.clear();
-  }
-};
-
-template <typename T, class Cleaner = TCleaner<T>, class VectorInitializer = TVectorInitializer<T>>
+template <typename T>
 class TGridConst : public BaseGrid
 {
 public:
-  using reftype = typename std::vector<T>::reference;
-  using creftype = typename std::vector<T>::const_reference;
+  using reftype = reftype<T>;
+  using creftype = creftype<T>;
 
+  //Инициализация элементов пустыми значениями с помощью конструктора без параметров
+  //Если требуется иное, используйте другой конструктор
   TGridConst(int width, int height) :
-    BaseGrid(width, height)
+    BaseGrid(width, height),
+    m_empty_val(default_empty_val<T>)
   {
-    VectorInitializer::init(m_data, width * height);
+    //VectorInitializer::init(m_data, width * height);
+    m_data.resize(width * height);
   }
 
-  static bool isEmptyItem(const T& item)
+  TGridConst(int width, int height, const typename TEmptyValType<T>::type& empty_val)
   {
-    return Cleaner::empty(item);
+    m_data.resize(width * height, empty_val);
+    m_empty_val = empty_val;
   }
 
   bool isEmptyCell(const GPoint& p) const
@@ -132,9 +118,15 @@ public:
   }
 
 protected:
-  static void clearItem(reftype item)
+  bool isEmptyItem(const T& item) const
   {
-    Cleaner::clear(item);
+    return nsg::isEmptyItem(item, m_empty_val);
+  }
+
+  void clearItem(reftype item)
+  {
+    //Cleaner::clear(item);
+    nsg::clearItem<T>(item, m_empty_val);
   }
 
   void clearCell(const GPoint& p)
@@ -150,16 +142,23 @@ protected:
 
 protected:
   std::vector<T> m_data;
+
+  typename TEmptyValType<T>::type m_empty_val;
 };
 
-template <typename T, class Cleaner = TCleaner<T>, class VectorInitializer = TVectorInitializer<T>>
-class TGridStack : public TGridConst<T, Cleaner, VectorInitializer>
+template <typename T>
+class TGridStack : public TGridConst<T>
 {
 private:
-  using Base = TGridConst<T, Cleaner, VectorInitializer>;
+  using Base = TGridConst<T>;
 
 public:
   TGridStack(int width, int height) : Base(width, height)
+  {
+    m_cells.reserve(width * height);
+  }
+
+  TGridStack(int width, int height, const typename TEmptyValType<T>::type& empty_val) : Base(width, height, empty_val)
   {
     m_cells.reserve(width * height);
   }
