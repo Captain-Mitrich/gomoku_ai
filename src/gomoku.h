@@ -324,39 +324,6 @@ protected:
   int getBlockingMoveWgt(int line_len);
   int getLineWgt(int line_len);
 
-//  template<typename PointHandler>
-//  bool findMove(GPoint& move, PointHandler pointHandler)
-//  {
-//    move.x = move.y = 0;
-//    do
-//    {
-//      if (pointHandler(move))
-//        return true;
-//    }
-//    while(next(move));
-
-//    return false;
-//  }
-
-//  template<typename WgtHandler>
-//  bool findVictoryMove(GPlayer player, GPoint& move, int depth, WgtHandler wgtHandler)
-//  {
-//    int wgt;
-//    auto moveHandler = [&](const GPoint& move)
-//    {
-//      if (!isEmptyCell(move))
-//        return false;
-
-//      wgt = calcWgt(player, move, depth);
-
-//      wgtHandler(move, wgt);
-
-//      return wgt == WGT_VICTORY;
-//    };
-
-//    return findMove(move, moveHandler);
-//  }
-
   bool next(GPoint& point) const;
 
   GPointStack& getGrid(uint depth)

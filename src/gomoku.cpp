@@ -307,57 +307,6 @@ GPoint Gomoku::hintBestDefense(
 
   if (calcMaxDefenseWgt(player, variants, depth, enemy_move4_chain_depth, true, true, &max_wgt_moves) == WGT_DEFEAT)
     return enemy_move4;
-//  std::vector<GPoint> max_wgt_moves;
-//  max_wgt_moves.reserve(width() * height() - cells().size());
-
-//  int max_wgt = WGT_DEFEAT;
-
-//  //Пробуем контршахи
-//  const auto& moves4 = dangerMoves(player);
-//  for (const auto& move4: moves4.cells())
-//  {
-//    if (!isDangerMove4(player, move4))
-//      continue;
-//    int wgt = calcDefenseMove4Wgt(player, move4, depth, enemy_move4_chain_depth);
-//    if (wgt == WGT_VICTORY)
-//      return move4;
-//    if (wgt < max_wgt)
-//      continue;
-//    if (wgt > max_wgt)
-//    {
-//      max_wgt = wgt;
-//      max_wgt_moves.clear();
-//    }
-//    max_wgt_moves.push_back(move4);
-//  }
-
-//  //Пробуем варианты, заданные на входе
-//  for (uint i = 0; i < variants.size(); ++i)
-//  {
-//    const GPoint& move = variants[i];
-//    if (isDangerMove4(player, move)) //вариант уже проверен
-//      continue;
-
-//    int wgt = calcDefenseWgt(player, move, depth, enemy_move4_chain_depth);
-//    if (wgt == WGT_VICTORY)
-//      return move;
-//    if (wgt < max_wgt)
-//      continue;
-//    if (wgt > max_wgt)
-//    {
-//      max_wgt = wgt;
-//      max_wgt_moves.clear();
-//    }
-//    max_wgt_moves.push_back(move);
-//  }
-
-//  if (max_wgt == WGT_DEFEAT)
-//  {
-//    //Все ходы проигрышные
-//    //Блокируем исходный шах противника
-//    return enemy_move4;
-//  }
-
   assert(!max_wgt_moves.empty());
   return max_wgt_moves[random(0, max_wgt_moves.size())];
 }
@@ -367,27 +316,6 @@ GPoint Gomoku::hintMaxWgt(GPlayer player, int depth)
   GStack<DEF_CELL_COUNT> max_wgt_moves;
 
   int max_wgt = calcMaxWgt(player, depth, &max_wgt_moves);
-
-//  std::vector<GPoint> max_wgt_moves;
-//  max_wgt_moves.reserve(width() * height() - cells().size());
-
-//  int max_wgt = WGT_DEFEAT;
-
-//  auto wgtHandler = [&](const GPoint& move, int wgt)
-//  {
-//    if (wgt < max_wgt)
-//      return;
-//    if (wgt > max_wgt)
-//    {
-//      max_wgt = wgt;
-//      max_wgt_moves.clear();
-//    }
-//    max_wgt_moves.push_back(move);
-//  };
-
-//  GPoint move;
-//  if (findVictoryMove(player, move, depth, wgtHandler))
-//    return move;
 
   if (max_wgt == WGT_DEFEAT)
   {
@@ -415,15 +343,6 @@ int Gomoku::calcMaxWgt(GPlayer player, int depth, GBaseStack* max_wgt_moves)
       return WGT_VICTORY;
   }
   while (next(move));
-
-//  auto wgtHandler = [&](const GPoint&, int wgt)
-//  {
-//    if (wgt > max_wgt)
-//      max_wgt = wgt;
-//  };
-
-//  GPoint move;
-//  findVictoryMove(player, move, depth, wgtHandler);
 
   return max_wgt;
 }
@@ -1188,9 +1107,6 @@ void Gomoku::updateRelatedMovesState()
     updateRelatedMovesState(vecs1[i]);
   }
 
-//  for (int i = 0; i < 4; ++i)
-//    updateMoves4(vecs1[i]);
-
   //ищем полушахи (открытые тройки)
   for (int i = 0; i < 4; ++i)
   {
@@ -1346,11 +1262,6 @@ void Gomoku::updateRelatedMovesState(const GVector& v1)
       ++counts[get(bp).player];
   }
 }
-
-//void Gomoku::updateMoves4(const GVector &v1)
-//{
-
-//}
 
 void Gomoku::updateOpen3(const GVector& v1)
 {
@@ -1592,11 +1503,6 @@ void Gomoku::restoreRelatedMovesState(const GVector& v1, uint& related_moves_ite
 {
   GPoint p = lastCell();
   GMoveData& last_move_data = ref(p);
-
-//  for (; last_move_data.line5_moves_count > 0; --last_move_data.line5_moves_count)
-//    removeLine5Move(last_move_data.player);
-
-//  undoLine4Moves(last_move_data);
 
   for (uint i = 0; ; ++i)
   {
