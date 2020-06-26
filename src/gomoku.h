@@ -158,6 +158,12 @@ public:
   using type = std::nullptr_t;
 };
 
+class GAttackMove : public GPoint
+{
+public:
+  GStack<DEF_CELL_COUNT> defense_variants;
+};
+
 class Gomoku : public IGomoku, protected GGrid
 {
 public:
@@ -248,7 +254,11 @@ protected:
 
   bool isVictoryForcedMove(GPlayer player, const GPoint& move, uint depth, uint defense_move4_chain_depth);
 
-  int calcMaxAttackWgt(GPlayer player);
+  int calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
+
+  int calcAttackWgt(GPlayer player, const GAttackMove& move, uint depth);
+
+  std::list<GAttackMove> findAttackMoves(GPlayer player);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
@@ -335,6 +345,11 @@ protected:
   bool isSpecialWgt(int wgt)
   {
     return wgt == WGT_VICTORY || wgt == WGT_DEFEAT || wgt == WGT_NEAR_VICTORY || wgt == WGT_NEAR_DEFEAT;
+  }
+
+  uint getReasonableMove4ChainDepth(uint cur_depth)
+  {
+    return (getAiLevel() > cur_depth) ? (getAiLevel() - cur_depth) : 0;
   }
 
   static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);

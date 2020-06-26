@@ -719,14 +719,14 @@ void TestGomoku::testHintBestDefense()
   defense_variants.push() = {6, 6};
 
   //Полушах контрится смежными ходами
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) > WGT_DEFEAT);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_DEFEAT);
   GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0);
   assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
 
   doMove(6, 8, G_BLACK);
   doMove(4, 10, G_BLACK);
   //Вилка 3х3 не контрится
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) == WGT_DEFEAT);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
   assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{-1, -1}));
 
   doMove(5, 7, G_WHITE);
@@ -735,9 +735,9 @@ void TestGomoku::testHintBestDefense()
   doMove(5, 6, G_BLACK);
   //Нейтрализуем вилку контршахом
   //Контршахи не рассматриваются как контршахи на глубине 0 при уровне сложности 0
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) == WGT_DEFEAT);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
   //На глубине > 0 контршахи рассматриваются как контршахи
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 1, 0) > WGT_DEFEAT);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 1, 0, true, true) > WGT_DEFEAT);
   assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 1, 0) == GPoint{5, 9}));
 
   undo();
@@ -756,7 +756,7 @@ void TestGomoku::testHintBestDefense()
   //то он рассматривается как защитный вариант
   //независимо от глубины и уровня сложности
   assert(isDangerMove4(G_WHITE, {10, 10}));
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0) > WGT_DEFEAT);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_DEFEAT);
   assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{10, 10}));
 }
 
@@ -787,6 +787,7 @@ void gtest(const char* name, TestMember<T> f, uint count = 1)
 int main()
 {
   gtest("testRVO", testRVO);
+  gtest("testAuto", testAuto);
   gtest("testDoMove", &TestGomoku::testDoMove);
   gtest("testUndo", &TestGomoku::testUndo);
   gtest("testIsGameOver", &TestGomoku::testIsGameOver);

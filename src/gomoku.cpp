@@ -678,25 +678,45 @@ bool Gomoku::isVictoryForcedMove(GPlayer player, const GPoint &move, uint depth,
   return !findDefenseMove4Chain(!player, depth, defense_move4_chain_depth - 1);
 }
 
-//int Gomoku::calcMaxAttackWgt(GPlayer player)
-//{
-//  int max_wgt = WGT_DEFEAT;
+int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves)
+{
+  auto attack_moves = findAttackMoves(player);
 
-//  //Рассматриваем полушахи
-//  const auto& danger_moves = dangerMoves(player);
-//  for (const auto& danger_move: danger_moves.cells())
-//  {
-//    if (!isEmptyCell(danger_move))
-//      continue;
-//    const auto& danger_move_data = danger_moves.get(danger_move);
-//    assert(danger_move_data);
-//    if (!danger_move_data)
-//    if (!isVictoryMove(player, danger_move, false, depth))
-//      continue;
-//    move = danger_move;
-//    return true;
-//  }
-//}
+  if (attack_moves.empty())
+    return calcMaxWgt(player, depth, max_wgt_moves);
+
+  int max_wgt = WGT_DEFEAT;
+
+  for (const auto& attack_move: attack_moves)
+  {
+    int wgt = calcAttackWgt(player, attack_move, depth);
+    if (updateMaxWgt(attack_move, wgt, max_wgt_moves, max_wgt) == WGT_VICTORY)
+      return WGT_VICTORY;
+  }
+
+  return max_wgt;
+}
+
+int Gomoku::calcAttackWgt(GPlayer player, const GAttackMove &move, uint depth)
+{
+  GMoveMaker gmm(this, player, move);
+
+  int enemy_wgt = calcMaxDefenseWgt(!player, move.defense_variants, depth + 1, getMove4ChainDepth(depth), false, true);
+}
+
+std::list<GAttackMove> Gomoku::findAttackMoves(GPlayer player)
+{
+  std::list<GAttackMove> attack_moves;
+
+  //Добавляем полушахи
+  auto& danger_moves = dangerMoves(player);
+  for (const auto& danger_move: danger_moves.cells())
+  {
+    auto& attack_move = attack_moves.emplace_back();
+    if (!isDangerOpen3(danger_move, attack_move.defense_variants))
+      attack_moves.pop_back();
+  }
+}
 
 int Gomoku::calcMaxDefenseWgt(
   GPlayer player,
@@ -873,8 +893,9 @@ int Gomoku::calcDefenseWgt(
   //Защитный ход может одновременно быть контратакующим
   GPoint tmp_move4;
   defense_variants.clear();
-  if (hintShortestVictoryMove4Chain(player, tmp_move4, getAiLevel() - depth, &defense_variants))
-    enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth + 1, getAiLevel() - depth, is_enemy_forced, is_player_forced);
+  int player_move4_chain_depth = getMove4ChainDepth(depth);
+  if (hintShortestVictoryMove4Chain(player, tmp_move4, player_move4_chain_depth, &defense_variants))
+    enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth + 1, player_move4_chain_depth, is_enemy_forced, is_player_forced);
   else
     enemy_wgt = calcMaxAttackWgt(!player);
 
