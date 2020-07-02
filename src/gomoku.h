@@ -61,10 +61,12 @@ public:
     m_moves4.push() = move2;
   }
 
-  void popLine4Moves(const GPoint*& move1, const GPoint*& move2)
+  void popLine4Moves(GPoint& move1, GPoint& move2)
   {
-    move2 = &m_moves4.pop();
-    move1 = &m_moves4.pop();
+    move2 = m_moves4.back();
+    m_moves4.pop();
+    move1 = m_moves4.back();
+    m_moves4.pop();
   }
 
   void pushOpen3(const GPoint& move)
@@ -72,9 +74,10 @@ public:
     m_open3_moves.push() = move;
   }
 
-  void popOpen3(GPoint*& move)
+  void popOpen3(GPoint& move)
   {
-    move = &m_open3_moves.pop();
+    move = m_open3_moves.back();
+    m_open3_moves.pop();
   }
 
 public:
@@ -140,15 +143,21 @@ public:
     return m_moves5.empty() && !m_open3;
   }
 
+  void clear()
+  {
+    m_moves5.clear();
+    m_open3 = false;
+  }
+
 public:
   GStack<8> m_moves5; //Для шаха или вилки шахов храним множество финальных дополнений
   bool      m_open3;  //Для открытой тройки храним признак открытой тройки
 };
 
-using GDangerMoveDataPtr = std::unique_ptr<GDangerMoveData>;
+//using GDangerMoveDataPtr = std::unique_ptr<GDangerMoveData>;
 
-template<class T>
-const std::nullptr_t default_empty_value<std::unique_ptr<T>> = nullptr;
+//template<class T>
+//const std::nullptr_t default_empty_value<std::unique_ptr<T>> = nullptr;
 
 class GAttackMove : public GPoint
 {
@@ -356,7 +365,7 @@ protected:
 
   GPointStack m_moves5[2];
 
-  TGridStack<GDangerMoveDataPtr> m_danger_moves[2];
+  TGridStack<GDangerMoveData> m_danger_moves[2];
 
   const static uint MAX_DEPTH = 10;
 

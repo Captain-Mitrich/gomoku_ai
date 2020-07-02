@@ -398,9 +398,9 @@ bool Gomoku::findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint dep
   if (!isEmptyCell(move4))
     return false;
   const auto& move4_data = dangerMoves(player).get(move4);
-  if (!move4_data)
-    return false;
-  const auto& moves5 = move4_data->m_moves5/*.cells()*/;
+//  if (!move4_data)
+//    return false;
+  const auto& moves5 = move4_data.m_moves5;
   uint move5_count = 0;
   uint move5_pair[2];
   for (uint i = 0; i < moves5.size(); ++i)
@@ -517,9 +517,9 @@ bool Gomoku::isVictoryMove(GPlayer player, const GPoint &move, bool forced, uint
   const auto& danger_move_data = dangerMoves(player).get(move);
 
   bool is_danger_move4 = false;
-  if (danger_move_data != nullptr)
-  {
-    const auto& moves5 = danger_move_data->m_moves5/*.cells()*/;
+//  if (danger_move_data != nullptr)
+//  {
+    const auto& moves5 = danger_move_data.m_moves5;
     for (uint i = 0; i < moves5.size(); ++i)
     {
       if (!isEmptyCell(moves5[i]))
@@ -528,7 +528,7 @@ bool Gomoku::isVictoryMove(GPlayer player, const GPoint &move, bool forced, uint
         return true;
       is_danger_move4 = true;
     }
-  }
+//  }
 
   if (depth == 0)
     return false;
@@ -542,7 +542,7 @@ bool Gomoku::isVictoryMove(GPlayer player, const GPoint &move, bool forced, uint
 
   //Продолжаем атаку, если ход является открытой тройкой,
   //или ход является вынужденным и от предыдущего хода осталась незаблокированная открытая тройка
-  if (!danger_move_data->m_open3 &&
+  if (!danger_move_data.m_open3 &&
       (!forced || !findVictoryMove4Chain(player, 0)))
     return false;
 
@@ -618,10 +618,10 @@ bool Gomoku::isDefenseMove4(GPlayer player, const GPoint &move4, uint depth, uin
 
   const auto& move4_data = dangerMoves(player).get(move4);
 
-  if (!move4_data)
-    return false;
+//  if (!move4_data)
+//    return false;
 
-  const auto& moves5 = move4_data->m_moves5/*.cells()*/;
+  const auto& moves5 = move4_data.m_moves5;
   bool is_danger_move4 = false;
   for (uint i = 0; i < moves5.size(); ++i)
   {
@@ -964,52 +964,51 @@ void Gomoku::addMoves4(GPlayer player, const GPoint& move1, const GPoint& move2,
 {
   auto& danger_moves = dangerMoves(player);
 
-  auto& data1 = danger_moves[move1];
-  if (!data1)
-    data1 = std::make_unique<GDangerMoveData>();
+//  auto& data1 = danger_moves[move1];
+//  if (!data1)
+//    data1 = std::make_unique<GDangerMoveData>();
+  auto& moves5_1 = danger_moves[move1].m_moves5;
   //Одна и та же пара ходов линии 4 может встретиться при одновременной реализации нескольких линий 3
   //(ситуации ххх__х, xx_x_x, xx__xx, x_xx_x)
   //Нужно избежать дублирования при добавлении
-  else if (/*!data1->m_moves5.isEmptyCell(move2)*/std::find(data1->m_moves5.begin(), data1->m_moves5.end(), move2) != data1->m_moves5.end())
+  if (std::find(moves5_1.begin(), moves5_1.end(), move2) != moves5_1.end())
   {
     assert(
-      danger_moves[move2] &&
-      std::find(danger_moves[move2]->m_moves5.begin(), danger_moves[move2]->m_moves5.end(), move1) != danger_moves[move2]->m_moves5.end()
-      /*!danger_moves[move2]->m_moves5.isEmptyCell(move1)*/);
+      std::find(danger_moves[move2].m_moves5.begin(), danger_moves[move2].m_moves5.end(), move1) !=
+      danger_moves[move2].m_moves5.end());
     return;
   }
-  //data1->m_moves5.push(move2) = true;
-  data1->m_moves5.push() = move2;
-  auto& data2 = danger_moves[move2];
-  if (!data2)
-    data2 = std::make_unique<GDangerMoveData>();
-  assert(/*data2->m_moves5.isEmptyCell(move1)*/std::find(data2->m_moves5.begin(), data2->m_moves5.end(), move1) == data2->m_moves5.end());
+  moves5_1.push() = move2;
+  auto& moves5_2 = danger_moves[move2].m_moves5;
+//  if (!data2)
+//    data2 = std::make_unique<GDangerMoveData>();
+  assert(std::find(moves5_2.begin(), moves5_2.end(), move1) == moves5_2.end());
   //data2->m_moves5.push(move1) = true;
-  data2->m_moves5.push() = move1;
+  moves5_2.push() = move1;
   source.pushLine4Moves(move1, move2);
 }
 
 void Gomoku::undoMoves4(GMoveData& source)
 {
   auto& danger_moves = dangerMoves(source.player);
-  const GPoint* move1, * move2;
+  GPoint move1, move2;
   while (!source.emptyLine4Moves())
   {
     source.popLine4Moves(move1, move2);
-    auto& data2 = danger_moves[*move2];
-    assert(data2 && !data2->m_moves5/*.cells()*/.empty() && data2->m_moves5/*.cells()*/.back() == *move1);
-    data2->m_moves5.pop();
-    if (data2->empty())
+    auto& data2 = danger_moves[move2];
+    assert(!data2.m_moves5.empty() && data2.m_moves5.back() == move1);
+    data2.m_moves5.pop();
+    if (data2.empty())
     {
-      assert(danger_moves.cells().back() == *move2);
+      assert(danger_moves.cells().back() == move2);
       danger_moves.pop();
     }
-    auto& data1 = danger_moves[*move1];
-    assert(data1 && !data1->m_moves5/*.cells()*/.empty() && data1->m_moves5/*.cells()*/.back() == *move2);
-    data1->m_moves5.pop();
-    if (data1->empty())
+    auto& data1 = danger_moves[move1];
+    assert(!data1.m_moves5.empty() && data1.m_moves5.back() == move2);
+    data1.m_moves5.pop();
+    if (data1.empty())
     {
-      assert(danger_moves.cells().back() == *move1);
+      assert(danger_moves.cells().back() == move1);
       danger_moves.pop();
     }
   }
@@ -1020,10 +1019,10 @@ bool Gomoku::isDangerMove4(GPlayer player, const GPoint& move) const
   if (!isEmptyCell(move))
     return false;
   const auto& dangerMoveData = m_danger_moves[player].get(move);
-  if (!dangerMoveData)
-    return false;
+//  if (!dangerMoveData)
+//    return false;
   //ход является ходом линии 4, если для него заданы парные и хотя бы один из них не занят
-  const auto& moves5 = dangerMoveData->m_moves5/*.cells()*/;
+  const auto& moves5 = dangerMoveData.m_moves5;
   for (uint i = 0; i < moves5.size(); ++i)
   {
     if (isEmptyCell(moves5[i]))
@@ -1445,11 +1444,11 @@ void Gomoku::updateOpen3_Xx_x(const GPoint &p3, const GVector &v1)
 void Gomoku::addOpen3(const GPoint &move)
 {
   auto& move_data = dangerMoves(lastMovePlayer())[move];
-  if (!move_data)
-    move_data = std::make_unique<GDangerMoveData>();
-  if (move_data->m_open3)
+//  if (!move_data)
+//    move_data = std::make_unique<GDangerMoveData>();
+  if (move_data.m_open3)
     return;
-  move_data->m_open3 = true;
+  move_data.m_open3 = true;
   ref(lastCell()).pushOpen3(move);
 }
 
@@ -1457,16 +1456,16 @@ void Gomoku::undoOpen3(GMoveData& source)
 {
   auto& danger_moves = dangerMoves(source.player);
 
-  GPoint* open3_move;
+  GPoint open3_move;
   while (!source.m_open3_moves.empty())
   {
     source.popOpen3(open3_move);
-    auto& open3_data = danger_moves[*open3_move];
-    assert(open3_data && open3_data->m_open3);
-    open3_data->m_open3 = false;
-    if (open3_data->empty())
+    auto& open3_data = danger_moves[open3_move];
+    assert(open3_data.m_open3);
+    open3_data.m_open3 = false;
+    if (open3_data.empty())
     {
-      assert(danger_moves.cells().back() == *open3_move);
+      assert(danger_moves.cells().back() == open3_move);
       danger_moves.pop();
     }
   }
@@ -1477,7 +1476,7 @@ bool Gomoku::isDangerOpen3(GPlayer player, const GPoint &move, GBaseStack &defen
   if (!isEmptyCell(move))
     return false;
   const auto& danger_move_data = dangerMoves(player).get(move);
-  if (!danger_move_data || !danger_move_data->m_open3)
+  if (!danger_move_data.m_open3)
     return false;
   GMoveMaker gmm(this, player, move);
   return findVictoryMove4Chain(player, 0, &defense_variants);

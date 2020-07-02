@@ -3,8 +3,9 @@
 
 #include "gint.h"
 #include "gdefs.h"
-#include "assert.h"
-
+#include <cassert>
+#include <type_traits>
+#include <cstdint>
 namespace nsg
 {
 
@@ -19,10 +20,10 @@ public:
     return m_size == 0;
   }
 
-  void clear()
-  {
-    m_size = 0;
-  }
+//  void clear()
+//  {
+//    m_size = 0;
+//  }
 
   uint size() const
   {
@@ -37,6 +38,11 @@ template<typename T>
 class TBaseStack : public BaseArray
 {
 public:
+  TBaseStack(T* data) : m_data(data)
+  {
+    assert(data);
+  }
+
   DELETE_COPY(TBaseStack)
 
   T& operator[](uint i)
@@ -65,13 +71,26 @@ public:
 
   T& push()
   {
-    return m_data[m_size++];
+    T* item = new (m_data + m_size++) T;
+    return *item;
   }
 
-  T& pop()
+  void pop()
   {
     assert(!empty());
-    return m_data[--m_size];
+    //return m_data[--m_size];
+    m_data[--m_size].~T();
+  }
+
+  void clear()
+  {
+    if constexpr (std::is_trivially_destructible_v<T>)
+      m_size = 0;
+    else
+    {
+      while (m_size > 0)
+        pop();
+    }
   }
 
   const T* begin() const
@@ -85,12 +104,6 @@ public:
   }
 
 protected:
-  TBaseStack(T* data) : m_data(data)
-  {
-    assert(data);
-  }
-
-protected:
   T* m_data;
 };
 
@@ -98,11 +111,13 @@ template<typename T, uint MAXSIZE>
 class TStack : public TBaseStack<T>
 {
 public:
-  TStack() : TBaseStack<T>(m_array)
+  TStack() : TBaseStack<T>((T*)m_array)
   {}
 
 protected:
-  T m_array[MAXSIZE];
+  //нельзя допустить конструирования всех элементов резерва,
+  //поэтому резерв объявляем как массив байтов
+  std::uint8_t m_array[MAXSIZE * sizeof(T)];
 };
 
 } //namespace nsg

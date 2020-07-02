@@ -53,13 +53,13 @@ protected:
   bool isMove4(GPlayer player, int x, int y)
   {
     const auto& danger_move_data = m_danger_moves[player][{x, y}];
-    return danger_move_data && danger_move_data->m_moves5/*.cells()*/.size() > 0;
+    return !danger_move_data.m_moves5.empty();
   }
 
   bool isOpen3(GPlayer player, int x, int y)
   {
     const auto& danger_move_data = m_danger_moves[player][{x, y}];
-    return danger_move_data && danger_move_data->m_open3;
+    return danger_move_data.m_open3;
   }
 };
 
@@ -217,12 +217,10 @@ void TestGomoku::testMoves4()
   //В порождающем ходе шахи фиксируются парами
   assert(move_data_97.m_moves4.size() == 6);
   const auto& move4_data_57 = danger_moves[{5, 7}];
-  assert(move4_data_57);
-  GTestGrid moves5(move4_data_57->m_moves5);
+  GTestGrid moves5(move4_data_57.m_moves5);
   assert(moves5.cells().size() == 1 && !moves5.isEmptyCell({6, 7}));
   const auto& move4_data_67 = danger_moves[{6, 7}];
-  assert(move4_data_67);
-  moves5 = move4_data_67->m_moves5;
+  moves5 = move4_data_67.m_moves5;
   assert(moves5.cells().size() == 2 && !moves5.isEmptyCell({5, 7}) && !moves5.isEmptyCell({10, 7}));
 
   doMove(10, 7, G_WHITE);
@@ -248,14 +246,12 @@ void TestGomoku::testMoves4()
   doMove(6, 8, G_BLACK);
   doMove(6, 10, G_BLACK);
   doMove(6, 6, G_BLACK);
-  assert(move4_data_67);
-  moves5 = move4_data_67->m_moves5;
+  moves5 = move4_data_67.m_moves5;
   assert(moves5.cells().size() == 3 && !moves5.isEmptyCell({6, 9}));
   assert(get({6, 6}).m_moves4.size() == 2);
   //При откате этот ход 4 не пропадает, но пропадает один связанный с ним ход 5
   undo();
-  assert(move4_data_67);
-  moves5 = move4_data_67->m_moves5;
+  moves5 = move4_data_67.m_moves5;
   assert(moves5.cells().size() == 2 && moves5.isEmptyCell({6, 9}));
 }
 
@@ -322,14 +318,14 @@ void TestGomoku::testOpen3()
   //ххХ_х - шах, но не открытая тройка
   {
     const auto& danger_move_data = danger_moves.get({9, 7});
-    assert(danger_move_data && !danger_move_data->m_open3);
+    assert(!danger_move_data.empty() && !danger_move_data.m_open3);
   }
   //Ххх__х
   assert(isOpen3(G_BLACK, 6, 7));
   //хх_Хх - шах, но не открытая тройка
   {
     const auto& danger_move_data = danger_moves.get({10, 7});
-    assert(danger_move_data && !danger_move_data->m_open3);
+    assert(!danger_move_data.empty() && !danger_move_data.m_open3);
   }
   //Х_хх__х
   assert(isOpen3(G_BLACK, 5, 7));
@@ -407,12 +403,12 @@ void TestGomoku::testOpen3()
   //хХх_х - шах, но не открытая тройка
   {
     const auto& danger_move_data = danger_moves.get({6, 6});
-    assert(danger_move_data && !danger_move_data->m_open3);
+    assert(!danger_move_data.empty() && !danger_move_data.m_open3);
   }
   //х_хХх - шах, но не открытая тройка
   {
     const auto& danger_move_data = danger_moves.get({8, 8});
-    assert(danger_move_data && !danger_move_data->m_open3);
+    assert(!danger_move_data.empty() && !danger_move_data.m_open3);
   }
 
   undo();
