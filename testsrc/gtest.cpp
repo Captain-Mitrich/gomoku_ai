@@ -4,142 +4,28 @@
 #include "../src/grandom.h"
 #include <iostream>
 
-//namespace nsg
-//{
-
-//extern bool adjustLineStart(GPoint& start, const GVector& v1, int lineLen, int width, int height);
-
-//extern GVector randomV1();
-
-//}
-
 using namespace nsg;
 
 class GTestGrid : public GPointStack
 {
 public:
-  GTestGrid() : GPointStack(DEF_GRID_WIDTH, DEF_GRID_HEIGHT)
+  GTestGrid(const GBaseStack& stack)
   {
-    std::cout << "GTestGrid default constructor" << std::endl;
+    operator=(stack);
   }
-  ~GTestGrid()
+
+  GTestGrid& operator=(const GBaseStack& stack)
   {
-    std::cout << "GTestGrid destructor" << std::endl;
-  }
-  GTestGrid(const GTestGrid& tg) : GPointStack(tg)
-  {
-    std::cout << "GTestGrid copy constructor" << std::endl;
-  }
-  GTestGrid& operator=(const GTestGrid& tg)
-  {
-    std::cout << "GTestGrid copy operator" << std::endl;
-    GPointStack::operator=(tg);
+    clear();
+    for (const GPoint& p: stack)
+      (*this)[p] = true;
     return *this;
   }
 };
-
-class GTestGridMovable : public GPointStack
-{
-public:
-  GTestGridMovable() : GPointStack(DEF_GRID_WIDTH, DEF_GRID_HEIGHT)
-  {
-    std::cout << "GTestGridMovable default constructor" << std::endl;
-  }
-  ~GTestGridMovable()
-  {
-    std::cout << "GTestGridMovable destructor" << std::endl;
-  }
-  GTestGridMovable(const GTestGridMovable& tg) : GPointStack(tg)
-  {
-    std::cout << "GTestGridMovable copy constructor" << std::endl;
-  }
-  GTestGridMovable& operator=(const GTestGridMovable& tg)
-  {
-    std::cout << "GTestGridMovable copy operator" << std::endl;
-    GPointStack::operator=(tg);
-    return *this;
-  }
-  GTestGridMovable(GTestGridMovable&& tg) : GPointStack(std::move(tg))
-  {
-    std::cout << "GTestGridMovable move constructor" << std::endl;
-  }
-  GTestGridMovable& operator=(GTestGridMovable&& tg)
-  {
-    std::cout << "GTestGridMovable move operator" << std::endl;
-    GPointStack::operator=(std::move(tg));
-    return *this;
-  }
-};
-
-GTestGrid makeGrid(const GBaseStack& stack)
-{
-  GTestGrid res;
-  for (const GPoint& p: stack)
-    res[p] = true;
-  return res;
-}
-
-GTestGridMovable makeGridMovable(const GBaseStack& stack)
-{
-  GTestGridMovable res;
-  for (const GPoint& p: stack)
-    res[p] = true;
-  return res;
-}
-
-void makeGrid(const GBaseStack& stack, GTestGrid& grid)
-{
-  grid.clear();
-  for (const GPoint& p: stack)
-    grid[p] = true;
-}
-
-//По результатам этого теста видно, что RVO работает не во всех случаях,
-//поэтому передача целевого объекта по ссылке хотя и менее удобна, но в общем случае более эффективна,
-//чем возврат по значению
-void testRVO()
-{
-  GStack<8> stack;
-  stack.push() = {7, 7};
-  stack.push() = {8, 7};
-
-  //Вызов с полной оптимизацией (компилятор не создает локальный объект res)
-  std::cout << "GTestGrid grid = makeGrid(stack);" << std::endl;
-  GTestGrid grid = makeGrid(stack);
-  std::cout << std::endl;
-
-  //Вызов с созданием и уничтожением локального объекта res и однократным срабатыванием оператора копирования
-  //При создании и уничтожении локального объекта res выделяется и освобождается память
-  //При копировании выполняется также очистка целевого объекта
-  //(оптимизация не работает)
-  std::cout << "grid = makeGrid(stack);" << std::endl;
-  grid = makeGrid(stack);
-  std::cout << std::endl;
-
-  //Вызов с полной оптимизацией (компилятор не создает локальный объект res)
-  std::cout << "GTestGridMovable gridm = makeGridMovable(stack);" << std::endl;
-  GTestGridMovable gridm = makeGridMovable(stack);
-  std::cout << std::endl;
-
-  //Вызов с созданием и уничтожением локального объекта res и однократным срабатыванием оператора перемещения
-  //(компилятор вызывает оператор перемещения вместо оператора копирования)
-  //При создании и уничтожении локального объекта res выделяется и освобождается память
-  std::cout << "gridm = makeGridMovable(stack);" << std::endl;
-  gridm = makeGridMovable(stack);
-  std::cout << std::endl;
-
-  //Передача по ссылке и очистка целевого объекта внутри функции (эффективно во всех случаях)
-  std::cout << "makeGrid(stack, grid);" << std::endl;
-  makeGrid(stack, grid);
-  std::cout << std::endl;
-}
 
 class TestGomoku : public Gomoku
 {
 public:
-  TestGomoku(int _width = 15, int _height = 15) : Gomoku(_width, _height)
-  {}
-
   void testDoMove();
 
   void testUndo();
@@ -167,7 +53,7 @@ protected:
   bool isMove4(GPlayer player, int x, int y)
   {
     const auto& danger_move_data = m_danger_moves[player][{x, y}];
-    return danger_move_data && danger_move_data->m_moves5.cells().size() > 0;
+    return danger_move_data && danger_move_data->m_moves5/*.cells()*/.size() > 0;
   }
 
   bool isOpen3(GPlayer player, int x, int y)
@@ -248,17 +134,39 @@ void TestGomoku::testIsGameOver()
   doMove(11, 11, G_BLACK);
   assert(isGameOver());
 
+  start();
   //Окончание игры при отсутствии свободных ячеек
-  TestGomoku g(4, 4);
+  //хохо
+  //хохо
+  //хохо
+  //охох
+  //охох
+  //охох
   GPoint move{0, 0};
-  do
+  GPlayer player = G_BLACK;
+
+  auto fillRowWithout5 = [&]()
   {
-    assert(!g.isGameOver());
-    g.doMove(move);
-    assert(!g.getLine5());
-  }
-  while (g.next(move));
-  assert(g.isGameOver());
+    assert(move.x == 0);
+    for (; ; )
+    {
+      assert(!isGameOver());
+      assert(doMove(move, player));
+      if (!next(move) || move.x == 0)
+        break;
+      player = !player;
+    }
+  };
+
+  auto fill3RowsWithout5 = [&]()
+  {
+    for (int i = 0; i < 3; ++i)
+      fillRowWithout5();
+  };
+
+  for (int i = 0; i < 5; ++i, player = !player)
+    fill3RowsWithout5();
+  assert(isGameOver());
 }
 
 void TestGomoku::testMoves5()
@@ -309,9 +217,13 @@ void TestGomoku::testMoves4()
   //В порождающем ходе шахи фиксируются парами
   assert(move_data_97.m_moves4.size() == 6);
   const auto& move4_data_57 = danger_moves[{5, 7}];
-  assert(move4_data_57 && move4_data_57->m_moves5.cells().size() == 1 && !move4_data_57->m_moves5.isEmptyCell({6, 7}));
+  assert(move4_data_57);
+  GTestGrid moves5(move4_data_57->m_moves5);
+  assert(moves5.cells().size() == 1 && !moves5.isEmptyCell({6, 7}));
   const auto& move4_data_67 = danger_moves[{6, 7}];
-  assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 2 && !move4_data_67->m_moves5.isEmptyCell({5, 7}) && !move4_data_67->m_moves5.isEmptyCell({10, 7}));
+  assert(move4_data_67);
+  moves5 = move4_data_67->m_moves5;
+  assert(moves5.cells().size() == 2 && !moves5.isEmptyCell({5, 7}) && !moves5.isEmptyCell({10, 7}));
 
   doMove(10, 7, G_WHITE);
   //Ходы (10, 7), (11, 7) остаются зафиксированными в множестве ходов 4 и в порождающем ходе, но перестают быть опасными
@@ -322,13 +234,6 @@ void TestGomoku::testMoves4()
   //При отмене блокирующего хода все ходы 4 снова становятся опасными
   assert(isDangerMove4(G_BLACK, {5, 7}) && isDangerMove4(G_BLACK, {6, 7}) && isDangerMove4(G_BLACK, {10, 7}) && isDangerMove4(G_BLACK, {11, 7}));
 
-//  doMove(6, 7, G_BLACK);
-//  //Ход (4, 7) является шахом, но он не фиксируется как шах,
-//  //поскольку парный с ним ход (5, 7) является ходом 5
-//  assert(!isMove4(G_BLACK, 4, 7));
-//  assert(get({6, 7}).m_moves4.empty());
-
-//  undo();
   undo();
   //При отмене порождающего хода все ходы 4 пропадают
   assert(!isMove4(G_BLACK, 5, 7) && !isMove4(G_BLACK, 6, 7) && !isMove4(G_BLACK, 10, 7) && !isMove4(G_BLACK, 11, 7));
@@ -343,15 +248,15 @@ void TestGomoku::testMoves4()
   doMove(6, 8, G_BLACK);
   doMove(6, 10, G_BLACK);
   doMove(6, 6, G_BLACK);
-  assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 3 && !move4_data_67->m_moves5.isEmptyCell({6, 9}));
+  assert(move4_data_67);
+  moves5 = move4_data_67->m_moves5;
+  assert(moves5.cells().size() == 3 && !moves5.isEmptyCell({6, 9}));
   assert(get({6, 6}).m_moves4.size() == 2);
   //При откате этот ход 4 не пропадает, но пропадает один связанный с ним ход 5
   undo();
-  assert(move4_data_67 && move4_data_67->m_moves5.cells().size() == 2 && move4_data_67->m_moves5.isEmptyCell({6, 9}));
-
-  doMove(5, 7);
-  //Ход (6, 7) является ходом 5. При этом он не должен фиксироваться как ход 4
-
+  assert(move4_data_67);
+  moves5 = move4_data_67->m_moves5;
+  assert(moves5.cells().size() == 2 && moves5.isEmptyCell({6, 9}));
 }
 
 void TestGomoku::testOpen3()
@@ -593,11 +498,11 @@ void TestGomoku::testHintVictoryMove4Chain()
 
   GStack<32> defense_variants;
   assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
-  auto grid = makeGrid(defense_variants);
+  GTestGrid grid(defense_variants);
   assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({10, 7}));
   defense_variants.clear();
   assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0, &defense_variants));
-  makeGrid(defense_variants, grid);
+  grid = defense_variants;
   assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({4, 7}));
 
   doMove(9, 7, G_WHITE);
@@ -635,7 +540,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 5);
-  makeGrid(defense_variants, grid);
+  grid = defense_variants;
   assert(
     grid.cells().size() == 5 &&
     !grid.isEmptyCell({5, 7}) &&
@@ -654,7 +559,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   assert((move4 == GPoint{5, 7}));
   //Защитные ходы могут дублироваться
   assert(defense_variants.size() >= 9);
-  makeGrid(defense_variants, grid);
+  grid = defense_variants;
   assert(
     grid.cells().size() == 9 &&
     !grid.isEmptyCell({5, 7}) &&
@@ -683,7 +588,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 2, &defense_variants));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 7);
-  makeGrid(defense_variants, grid);
+  grid = defense_variants;
   assert(
     grid.cells().size() == 7 &&
     !grid.isEmptyCell({5, 7}) &&
@@ -713,13 +618,13 @@ void TestGomoku::testHintBestDefense()
   doMove(8, 8, G_BLACK);
   doMove(9, 9, G_BLACK);
 
-  GStack<DEF_CELL_COUNT> defense_variants;
+  GStack<gridSize()> defense_variants;
   defense_variants.push() = {5, 5};
   defense_variants.push() = {10, 10};
   defense_variants.push() = {6, 6};
 
   //Полушах контрится смежными ходами
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_DEFEAT);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
   GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0);
   assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
 
@@ -734,30 +639,15 @@ void TestGomoku::testHintBestDefense()
   doMove(5, 10, G_WHITE);
   doMove(5, 6, G_BLACK);
   //Нейтрализуем вилку контршахом
-  //Контршахи не рассматриваются как контршахи на глубине 0 при уровне сложности 0
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
-  //На глубине > 0 контршахи рассматриваются как контршахи
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 1, 0, true, true) > WGT_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 1, 0) == GPoint{5, 9}));
-
-  undo();
-  undo();
-  undo();
-  undo();
-  undo();
-  undo();
-  doMove(7, 10, G_WHITE);
-  doMove(8, 10, G_WHITE);
-  doMove(11, 10, G_WHITE);
-  doMove(11, 9, G_BLACK);
-  doMove(13, 7, G_BLACK);
-  doMove(9, 11, G_BLACK);
-  //Если защитный вариант (в нашем случае 10, 10)является контршахом,
-  //то он рассматривается как защитный вариант
-  //независимо от глубины и уровня сложности
-  assert(isDangerMove4(G_WHITE, {10, 10}));
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{10, 10}));
+  //Контршахи не рассматриваются на следующем уровне глубины
+  //При этом вес контршаха определяется как почти проигрышный
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_NEAR_DEFEAT);
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{5, 9}));
+  //При более высоком уровне сложности контршах рассматривается на следующем уровне глубины,
+  //и программа определяет, что он блокирует вилку
+  setAiLevel(1);
+  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{5, 9}));
 }
 
 using TestFunc = void();
@@ -786,8 +676,6 @@ void gtest(const char* name, TestMember<T> f, uint count = 1)
 
 int main()
 {
-  gtest("testRVO", testRVO);
-  gtest("testAuto", testAuto);
   gtest("testDoMove", &TestGomoku::testDoMove);
   gtest("testUndo", &TestGomoku::testUndo);
   gtest("testIsGameOver", &TestGomoku::testIsGameOver);

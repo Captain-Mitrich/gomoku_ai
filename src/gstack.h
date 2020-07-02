@@ -2,6 +2,8 @@
 #define GSTACK_H
 
 #include "gint.h"
+#include "gdefs.h"
+#include "assert.h"
 
 namespace nsg
 {
@@ -35,6 +37,8 @@ template<typename T>
 class TBaseStack : public BaseArray
 {
 public:
+  DELETE_COPY(TBaseStack)
+
   T& operator[](uint i)
   {
     assert(i < m_size);
@@ -48,6 +52,12 @@ public:
   }
 
   T& back()
+  {
+    assert(!empty());
+    return m_data[m_size - 1];
+  }
+
+  const T& back() const
   {
     assert(!empty());
     return m_data[m_size - 1];

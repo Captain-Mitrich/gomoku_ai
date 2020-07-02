@@ -2,8 +2,8 @@
 #define GOMOKU_H
 
 #include "igomoku.h"
-#include "gline.h"
 #include "ggrid.h"
+#include "gline.h"
 #include "gstack.h"
 #include "gplayer.h"
 #include "gint.h"
@@ -11,10 +11,6 @@
 
 namespace nsg
 {
-
-static const uint DEF_GRID_WIDTH = 15;
-static const uint DEF_GRID_HEIGHT = 15;
-static const uint DEF_CELL_COUNT = DEF_GRID_WIDTH * DEF_GRID_HEIGHT;
 
 class GMoveWgt
 {
@@ -106,6 +102,16 @@ public:
   GMoveData(GPlayer _player = G_EMPTY) : player(_player)
   {}
 
+  bool empty() const
+  {
+    return player == G_EMPTY;
+  }
+
+  void clear()
+  {
+    player = G_EMPTY;
+  }
+
 public:
   GPlayer player;
 
@@ -115,59 +121,45 @@ public:
   GMoveWgt wgt;
 };
 
-template <>
-inline bool isEmptyItem(const GMoveData& item, const GMoveData&)
-{
-  return item.player == G_EMPTY;
-}
+template<int W, int H>
+using GGrid = TGridStack<GMoveData, W, H>;
 
-template <>
-inline void clearItem<GMoveData>(GMoveData& item, const GMoveData&)
-{
-  item.player = G_EMPTY;
-}
-
-using GGrid = TGridStack<GMoveData>;
-
-template <>
-const bool default_empty_val<bool> = false;
+template<>
+const bool default_empty_value<bool> = false;
 
 using GPointStack = TGridStack<bool>;
 
 class GDangerMoveData
 {
 public:
-  GDangerMoveData(int width, int height, bool open3 = false) : m_moves5(width, height), m_open3(open3)
+  GDangerMoveData(bool open3 = false) : m_open3(open3)
   {}
 
-  bool empty()
+  bool empty() const
   {
-    return m_moves5.cells().empty() && !m_open3;
+    return m_moves5.empty() && !m_open3;
   }
+
 public:
-  GPointStack m_moves5;  //Для шаха или вилки шахов храним множество финальных дополнений
-  bool m_open3;          //Для открытой тройки храним признак открытой тройки
+  GStack<8> m_moves5; //Для шаха или вилки шахов храним множество финальных дополнений
+  bool      m_open3;  //Для открытой тройки храним признак открытой тройки
 };
 
 using GDangerMoveDataPtr = std::unique_ptr<GDangerMoveData>;
 
-template <class T>
-class TEmptyValType<std::unique_ptr<T>>
-{
-public:
-  using type = std::nullptr_t;
-};
+template<class T>
+const std::nullptr_t default_empty_value<std::unique_ptr<T>> = nullptr;
 
 class GAttackMove : public GPoint
 {
 public:
-  GStack<DEF_CELL_COUNT> defense_variants;
+  GStack<GRID_CELL_COUNT> defense_variants;
 };
 
-class Gomoku : public IGomoku, protected GGrid
+class Gomoku : public IGomoku, protected GGrid<GRID_WIDTH, GRID_HEIGHT>
 {
 public:
-  Gomoku(int _width = DEF_GRID_WIDTH, int _height = DEF_GRID_HEIGHT);
+  Gomoku();
 
   void start() override;
   bool isValidNextMove(int x, int y) const override;
@@ -217,6 +209,8 @@ protected:
       GPoint& move,
       uint chain_depth);
 
+  GPoint hintBestAttack(GPlayer player);
+
   //Лучшая защита от выигрышной цепочки шахов противника
   GPoint hintBestDefense(
       GPlayer player,
@@ -225,11 +219,8 @@ protected:
       uint depth,
       uint enemy_move4_chain_depth);
 
-  //Ход с лучшим весом при отсутствии выигрышных цепочек шахов игрока и угроз противника
-  GPoint hintMaxWgt(GPlayer player, int depth);
-
-  int calcMaxWgt(GPlayer player, int depth, GBaseStack* max_wgt_moves = 0);
-  int calcWgt(GPlayer player, const GPoint& move, int depth);
+  int calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
+  int calcWgt(GPlayer player, const GPoint& move, uint depth);
 
   //Вес лучшей цепочки шахов
   bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0);
@@ -307,8 +298,6 @@ protected:
   bool buildLine5(const GVector& v1);
   void undoLine5();
 
-  bool adjustLineStart(GPoint& start, const GVector& v1, int lineLen) const;
-
   void initMovesWgt();
   void initWgt(const GLine& line5);
 
@@ -316,7 +305,6 @@ protected:
 
   void updateRelatedMovesState();
   void updateRelatedMovesState(const GVector& v1);
-  //void updateMoves4(const GVector& v1);
   void updateOpen3(const GVector& v1);
   void updateOpen3_Xxx(const GPoint& p3, const GVector& v1);
   void updateOpen3_X_xx(const GPoint& p5, const GVector& v1);
@@ -324,6 +312,7 @@ protected:
   void updateOpen3_Xx_x(const GPoint& p3, const GVector& v1);
   void addOpen3(const GPoint& move);
   void undoOpen3(GMoveData& moveData);
+  bool isDangerOpen3(GPlayer player, const GPoint& move, GBaseStack& defense_variants);
 
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
@@ -334,11 +323,10 @@ protected:
   int getBlockingMoveWgt(int line_len);
   int getLineWgt(int line_len);
 
-  bool next(GPoint& point) const;
-
   GPointStack& getGrid(uint depth)
   {
     assert(depth < MAX_DEPTH);
+    m_grids[depth].clear();
     return m_grids[depth];
   }
 
@@ -368,7 +356,7 @@ protected:
 
   GPointStack m_moves5[2];
 
-  TGridStack<GDangerMoveDataPtr/*, TPtrCleaner<GDangerMoveDataPtr>*/> m_danger_moves[2];
+  TGridStack<GDangerMoveDataPtr> m_danger_moves[2];
 
   const static uint MAX_DEPTH = 10;
 

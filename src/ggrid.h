@@ -1,167 +1,198 @@
 #ifndef GGRID_H
 #define GGRID_H
 
+#include "gstack.h"
 #include "gpoint.h"
-#include "assert.h"
-#include <vector>
 #include <list>
 
 namespace nsg
 {
 
-class BaseGrid
+////Обычно дефолтное пустое значение получается с помощью конструктора без параметров
+////Если требуется иное, нужна специализация шаблона TDefaultEmptyValue
+////В специализированном шаблоне нужно переопределить переменную value
+////(в которой хранится пустое значение), причем тип пустого значения может отличаться от T
+//template <typename T>
+//struct TDefaultEmptyValue
+//{
+//  static const T value;
+//};
+
+//template <typename T>
+//const T TDefaultEmptyValue<T>::value = T();
+
+//Обычно пустое значение по умолчанию получается с помощью конструктора без параметров
+//Если требуется иное, нужна специализация
+//Тип специализированного значения может отличаться от Т
+template<typename T>
+static const T default_empty_value = T();
+//Пример специализации пустого значения
+//template<class T>
+//const std::nullptr_t default_empty_value<std::unique_ptr<T>> = nullptr;
+
+//Тип указателя на член
+template <typename T, typename ReturnType, bool Const, typename... Args>
+struct MethodPtrTypeMeta
 {
-public:
-  BaseGrid(int width = 0, int height = 0) : m_width(width), m_height(height)
-  {
-    assert(width > 0 && height > 0);
-  }
-
-  int width() const
-  {
-    return m_width;
-  }
-
-  int height() const
-  {
-    return m_height;
-  }
-
-  int index(const GPoint& p) const
-  {
-    return p.y * m_height + p.x;
-  }
-
-  static bool isValidCell(const GPoint& p, int width, int height)
-  {
-    return p.x >= 0 && p.x < width && p.y >= 0 && p.y < height;
-  }
-
-  bool isValidCell(const GPoint& p) const
-  {
-    return isValidCell(p, m_width, m_height);
-  }
-
-protected:
-  int m_width;
-  int m_height;
+  using type = ReturnType (T::*) (Args...);
 };
 
-//Обычно тип пустого значения совпадает с типом непустого значения
-//Если требуется иное, нужна специализация
-template <typename T>
-class TEmptyValType
+//Специализация для константных членов
+template <typename T, typename ReturnType, typename... Args>
+struct MethodPtrTypeMeta<T, ReturnType, true, Args...>
 {
-public:
-  using type = T;
+  using type = ReturnType (T::*) (Args...) const;
 };
 
-//Обычно дефолтное пустое значение получается с помощью конструктора без параметров
-//Если требуется иное, нужна специализация
-template <typename T>
-static const typename TEmptyValType<T>::type default_empty_val = typename TEmptyValType<T>::type();
+template <typename T, typename ReturnType, bool Const, typename... Args>
+using MethodPtrType = typename MethodPtrTypeMeta<T, ReturnType, Const, Args...>::type;
 
-//Обычно проверка на пустоту делается путем сравнения с пустым значением
-//Если требуется иное, нужна специализация
-template <typename T>
-bool isEmptyItem(const T& item, const typename TEmptyValType<T>::type& empty_val)
-{
-  return item == empty_val;
+//Макрос для генерации метафункции проверки наличия в классе заданного метода
+//В параметр MetaFunctionName нужно задать желаемое имя метафункции
+//Например DECLARE_HAS_METHOD_TYPE_TRATE(has_foo, foo)
+//Пример проверки метода bool foo(ArgType1, ArgType2) const
+//if constexpr (has_foo<MyType, bool, true, ArgType1, ArgType2>())
+//В третьем параметре шаблона указывается, должен ли метод быть константным
+//Для скалярных типов функция возвращает false
+#define DECLARE_HAS_METHOD(meta_function_name, method_name)\
+template <typename T, typename ReturnType, bool Const, typename... Args>\
+struct meta_function_name##_s\
+{\
+  template<class U>\
+  static constexpr void detect(...);\
+  template<class U>\
+  static constexpr decltype(static_cast<MethodPtrType<T, ReturnType, Const, Args...>>(&U::method_name)) detect(bool);\
+  static constexpr bool value = !std::is_same_v<decltype(detect<T>(true)), void>;\
+};\
+template <typename T, typename ReturnType, bool Const, typename... Args>\
+constexpr bool meta_function_name()\
+{\
+  if constexpr (std::is_scalar<T>())\
+    return false;\
+  else\
+    return meta_function_name##_s<T, ReturnType, Const, Args...>::value;\
 }
 
-template <typename T>
-using reftype = typename std::vector<T>::reference;
+DECLARE_HAS_METHOD(hasEmpty, empty)
 
-template <typename T>
-using creftype = typename std::vector<T>::const_reference;
-
-//Обычно очистка делается путем присвоения с пустого значения
+//Проверка на пустоту по умолчанию использует метод bool T::empty() const при его наличии,
+//иначе сравнивает с пустым значением (см. TDefaultEmptyValue).
 //Если требуется иное, нужна специализация
 template <typename T>
-void clearItem(reftype<T> item, const typename TEmptyValType<T>::type& empty_val)
-{
-  item = empty_val;
-}
-
-template <typename T>
-class TGridConst : public BaseGrid
+class TEmptyChecker
 {
 public:
-  using reftype = reftype<T>;
-  using creftype = creftype<T>;
-
-  //Инициализация элементов пустыми значениями с помощью конструктора без параметров
-  //Если требуется иное, используйте другой конструктор
-  TGridConst(int width, int height) :
-    BaseGrid(width, height),
-    m_empty_val(default_empty_val<T>)
+  static bool empty(const T& item)
   {
-    //VectorInitializer::init(m_data, width * height);
-    m_data.resize(width * height);
+    if constexpr (hasEmpty<T, bool, true>())
+      return item.empty();
+    else
+      return item == default_empty_value<T>;
+  }
+};
+
+DECLARE_HAS_METHOD(hasClear, clear)
+
+//Очистка по умолчанию использует метод void T::clear() при его наличии,
+//иначе присваивает пустое значение
+//Если требуется иное, нужна специализация
+template <typename T>
+class TCleaner
+{
+public:
+  static void clear(T& item)
+  {
+    if constexpr (hasClear<T, void, false>())
+      item.clear();
+    else
+      item = default_empty_value<T>;
+  }
+};
+
+template <typename T, int W = GRID_WIDTH, int H = GRID_HEIGHT>
+class TGridConst
+{
+public:
+
+  TGridConst()
+  {
+    GPoint p{0, 0};
+    do
+    {
+      TCleaner<T>::clear(ref(p));
+    }
+    while (next(p));
   }
 
-  TGridConst(int width, int height, const typename TEmptyValType<T>::type& empty_val)
+  DELETE_COPY(TGridConst)
+
+  static constexpr int width()
   {
-    m_data.resize(width * height, empty_val);
-    m_empty_val = empty_val;
+    return W;
+  }
+
+  static constexpr int height()
+  {
+    return H;
+  }
+
+  static constexpr int gridSize()
+  {
+    return width() * height();
   }
 
   bool isEmptyCell(const GPoint& p) const
   {
-    return isEmptyItem(get(p));
+    return TEmptyChecker<T>::empty(get(p));
   }
 
-  creftype get(const GPoint& p) const
+  const T& get(const GPoint& p) const
   {
     assert(isValidCell(p));
-    return m_data[this->index(p)];
+    return m_data[p.x][p.y];
   }
 
 protected:
-  bool isEmptyItem(const T& item) const
-  {
-    return nsg::isEmptyItem(item, m_empty_val);
-  }
-
-  void clearItem(reftype item)
-  {
-    //Cleaner::clear(item);
-    nsg::clearItem<T>(item, m_empty_val);
-  }
-
   void clearCell(const GPoint& p)
   {
-    clearItem(ref(p));
+    TCleaner<T>::clear(ref(p));
   }
 
-  reftype ref(const GPoint& p)
+  T& ref(const GPoint& p)
   {
     assert(isValidCell(p));
-    return m_data[index(p)];
+    return m_data[p.x][p.y];
   }
 
+  static bool isValidCell(const GPoint& p)
+  {
+    return p.x >= 0 && p.x < width() && p.y >= 0 && p.y < height();
+  }
+
+  static bool next(GPoint& p)
+  {
+    assert(isValidCell(p));
+    if (++p.x == width())
+    {
+      if (++p.y == height())
+        return false;
+      p.x = 0;
+    }
+    return true;
+  }
 protected:
-  std::vector<T> m_data;
-
-  typename TEmptyValType<T>::type m_empty_val;
+  T m_data[width()][height()];
 };
-
-template <typename T>
-class TGridStack : public TGridConst<T>
+template <typename T, int W = GRID_WIDTH, int H = GRID_HEIGHT>
+class TGridStack : public TGridConst<T, W, H>
 {
 private:
-  using Base = TGridConst<T>;
+  using Base = TGridConst<T, W, H>;
+
+protected:
+  TStack<GPoint, W * H> m_cells;
 
 public:
-  TGridStack(int width, int height) : Base(width, height)
-  {
-    m_cells.reserve(width * height);
-  }
-
-  TGridStack(int width, int height, const typename TEmptyValType<T>::type& empty_val) : Base(width, height, empty_val)
-  {
-    m_cells.reserve(width * height);
-  }
 
   void clear()
   {
@@ -170,7 +201,7 @@ public:
     m_cells.clear();
   }
 
-  const std::vector<GPoint>& cells() const
+  const decltype(m_cells)& cells() const
   {
     return m_cells;
   }
@@ -180,17 +211,17 @@ public:
     return cells().back();
   }
 
-  typename Base::reftype operator[](const GPoint& p)
+  T& operator[](const GPoint& p)
   {
-    typename Base::reftype data = Base::ref(p);
-    if (Base::isEmptyItem(data))
-      m_cells.push_back(p);
+    T& data = Base::ref(p);
+    if (TEmptyChecker<T>::empty(data))
+      m_cells.push() = p;
     return data;
   }
 
-  typename Base::reftype push(const GPoint& p)
+  T& push(const GPoint& p)
   {
-    m_cells.push_back(p);
+    m_cells.push() = p;
     return Base::ref(p);
   }
 
@@ -198,23 +229,20 @@ public:
   {
     assert(!m_cells.empty());
     Base::clearCell(lastCell());
-    m_cells.pop_back();
+    m_cells.pop();
   }
-
-protected:
-  std::vector<GPoint> m_cells;
 };
-
 template<typename T>
 using ListIter = typename std::list<T>::iterator;
 
 //Множество точек с быстрым поиском, добавлением и удалением (хэш таблица)
-class TGridSet : public TGridConst<ListIter<GPoint>>
+template<int W = GRID_WIDTH, int H = GRID_HEIGHT>
+class TGridSet : public TGridConst<ListIter<GPoint>, W, H>
 {
-public:
-  TGridSet(int width, int height) : Base(width, height)
-  {}
+private:
+  using Base = TGridConst<ListIter<GPoint>, W, H>;
 
+public:
   const std::list<GPoint>& cells() const
   {
     return m_cells;
@@ -223,7 +251,8 @@ public:
   void insert(const GPoint& p)
   {
     auto& iter = Base::ref(p);
-    if (this->isEmptyItem(iter))
+    //if (isEmptyItem(iter))
+    if (TEmptyChecker<ListIter<GPoint>>::empty(iter))
     {
       iter = m_cells.emplace(m_cells.begin());
       (GPoint&)(*iter) = p;
@@ -233,18 +262,54 @@ public:
   void remove(const GPoint& p)
   {
     auto& iter = Base::ref(p);
-    if (this->isEmptyItem(iter))
+    //if (isEmptyItem(iter))
+    if (TEmptyChecker<ListIter<GPoint>>::empty(iter))
       return;
     m_cells.erase(iter);
-    this->clearItem(iter);
+    TCleaner<ListIter<GPoint>>::clear(iter);
   }
 
 protected:
   std::list<GPoint> m_cells;
-
-private:
-  using Base = TGridConst<ListIter<GPoint>>;
 };
+//class TGridSet : public TGridConst<ListIter<GPoint>>
+//{
+//public:
+//  TGridSet(int width, int height) : Base(width, height)
+//  {}
+
+//  const std::list<GPoint>& cells() const
+//  {
+//    return m_cells;
+//  }
+
+//  void insert(const GPoint& p)
+//  {
+//    auto& iter = Base::ref(p);
+//    //if (isEmptyItem(iter))
+//    if (TEmptyChecker<ListIter<GPoint>>::empty(iter))
+//    {
+//      iter = m_cells.emplace(m_cells.begin());
+//      (GPoint&)(*iter) = p;
+//    }
+//  }
+
+//  void remove(const GPoint& p)
+//  {
+//    auto& iter = Base::ref(p);
+//    //if (isEmptyItem(iter))
+//    if (TEmptyChecker<ListIter<GPoint>>::empty(iter))
+//      return;
+//    m_cells.erase(iter);
+//    TCleaner<ListIter<GPoint>>::clear(iter);
+//  }
+
+//protected:
+//  std::list<GPoint> m_cells;
+
+//private:
+//  using Base = TGridConst<ListIter<GPoint>>;
+//};
 
 } //namespace nsg
 
