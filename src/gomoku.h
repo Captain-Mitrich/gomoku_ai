@@ -225,7 +225,6 @@ protected:
       GPlayer player,
       const GPoint& enemy_move4,
       const GBaseStack& variants,
-      uint depth,
       uint enemy_move4_chain_depth);
 
   int calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
@@ -258,7 +257,7 @@ protected:
 
   int calcAttackWgt(GPlayer player, const GAttackMove& move, uint depth);
 
-  std::list<GAttackMove> findAttackMoves(GPlayer player);
+  //TGomokuStack<GAttackMove> findAttackMoves(GPlayer player);
 
   //Вес лучшей блокировки выигрышной цепочки шахов
   int calcMaxDefenseWgt(
@@ -346,7 +345,8 @@ protected:
 
   uint getReasonableMove4ChainDepth(uint cur_depth)
   {
-    return (getAiLevel() > cur_depth) ? (getAiLevel() - cur_depth) : 0;
+    //return (getAiLevel() > cur_depth) ? (getAiLevel() - cur_depth) : 0;
+    return getAiLevel();
   }
 
   static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);

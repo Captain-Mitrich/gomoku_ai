@@ -621,14 +621,14 @@ void TestGomoku::testHintBestDefense()
 
   //Полушах контрится смежными ходами
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
-  GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0);
+  GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0);
   assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
 
   doMove(6, 8, G_BLACK);
   doMove(4, 10, G_BLACK);
   //Вилка 3х3 не контрится
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{-1, -1}));
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{-1, -1}));
 
   doMove(5, 7, G_WHITE);
   doMove(5, 8, G_WHITE);
@@ -638,12 +638,12 @@ void TestGomoku::testHintBestDefense()
   //Контршахи не рассматриваются на следующем уровне глубины
   //При этом вес контршаха определяется как почти проигрышный
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_NEAR_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{5, 9}));
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
   //При более высоком уровне сложности контршах рассматривается на следующем уровне глубины,
   //и программа определяет, что он блокирует вилку
   setAiLevel(1);
   assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0, 0) == GPoint{5, 9}));
+  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
 }
 
 using TestFunc = void();

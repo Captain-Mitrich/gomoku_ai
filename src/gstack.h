@@ -6,6 +6,8 @@
 #include <cassert>
 #include <type_traits>
 #include <cstdint>
+#include <forward_list>
+
 namespace nsg
 {
 
@@ -118,6 +120,16 @@ protected:
   //нельзя допустить конструирования всех элементов резерва,
   //поэтому резерв объявляем как массив байтов
   std::uint8_t m_array[MAXSIZE * sizeof(T)];
+};
+
+template<typename T>
+class TStackAllocator : public std::allocator<T>
+{
+};
+
+template<typename T>
+class TGomokuStack : public std::forward_list<T, TStackAllocator<T>>
+{
 };
 
 } //namespace nsg
