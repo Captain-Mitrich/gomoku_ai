@@ -159,11 +159,11 @@ public:
 //template<class T>
 //const std::nullptr_t default_empty_value<std::unique_ptr<T>> = nullptr;
 
-class GAttackMove : public GPoint
-{
-public:
-  GStack<GRID_CELL_COUNT> defense_variants;
-};
+//class GAttackMove : public GPoint
+//{
+//public:
+//  GStack<GRID_CELL_COUNT> defense_variants;
+//};
 
 class Gomoku : public IGomoku, protected GGrid<GRID_WIDTH, GRID_HEIGHT>
 {
@@ -231,7 +231,7 @@ protected:
   int calcWgt(GPlayer player, const GPoint& move, uint depth);
 
   //Вес лучшей цепочки шахов
-  bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0);
+  //bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0);
 
   //Поиск выигрышной цепочки шахов с заданным начальным шахом
   bool findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants = 0);
@@ -255,7 +255,7 @@ protected:
 
   int calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
 
-  int calcAttackWgt(GPlayer player, const GAttackMove& move, uint depth);
+  int calcAttackWgt(GPlayer player, const GPoint& attack_move, const GBaseStack& defense_variants, uint depth);
 
   //TGomokuStack<GAttackMove> findAttackMoves(GPlayer player);
 

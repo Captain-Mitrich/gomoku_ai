@@ -385,17 +385,17 @@ int Gomoku::calcWgt(GPlayer player, const GPoint &move, uint depth)
   return wgt - enemy_wgt;
 }
 
-bool Gomoku::findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants)
-{
-  const auto& moves4 = dangerMoves(player);
-  for (const auto& move4: moves4.cells())
-  {
-    if (findVictoryMove4Chain(player, move4, depth, defense_variants))
-      return true;
-  }
+//bool Gomoku::findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants)
+//{
+//  const auto& moves4 = dangerMoves(player);
+//  for (const auto& move4: moves4.cells())
+//  {
+//    if (findVictoryMove4Chain(player, move4, depth, defense_variants))
+//      return true;
+//  }
 
-  return false;
-}
+//  return false;
+//}
 
 bool Gomoku::findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants)
 {
@@ -673,17 +673,22 @@ bool Gomoku::isVictoryForcedMove(GPlayer player, const GPoint &move, uint depth,
 
 int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves)
 {
+  int max_wgt = WGT_DEFEAT;
+
   GStack<gridSize()> defense_variants;
   GPoint move{0, 0};
   do
   {
     defense_variants.clear();
+    int wgt;
     if (isDangerOpen3(player, move, defense_variants))
-    {
-
-    }
-    if (!isEmptyCell(move))
+      wgt = calcAttackWgt(player, move, defense_variants, depth);
+    else if (isEmptyCell(move))
+      wgt = calcWgt(player, move, depth);
+    else
       continue;
+    if (updateMaxWgt(move, wgt, max_wgt_moves, max_wgt) >= WGT_NEAR_VICTORY)
+      return max_wgt;
   }
   while (next(move));
   //  //Добавляем полушахи
@@ -716,7 +721,7 @@ int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_mov
   return max_wgt;
 }
 
-int Gomoku::calcAttackWgt(GPlayer player, const GAttackMove &move, uint depth)
+int Gomoku::calcAttackWgt(GPlayer player, const GPoint& attack_move, const GBaseStack& defense_variants, uint depth)
 {
   int wgt = get(move).wgt[player];
 
@@ -877,7 +882,7 @@ int Gomoku::calcDefenseWgt(
 
   if (is_move4)
   {
-    //Закрываем шах
+    //Защитный ход игрока является контршахом
     const GPoint& enemy_block = m_moves5[player].lastCell();
 
     enemy_wgt = get(enemy_block).wgt[!player];
@@ -897,6 +902,9 @@ int Gomoku::calcDefenseWgt(
       const GPoint& player_block = m_moves5[!player].lastCell();
       player_wgt = calcDefenseWgt(player, player_block, depth + 2, enemy_move4_chain_depth, is_player_forced, is_enemy_forced);
     }
+    //Защитные ходы игрока могли привести к тому, что у него сложилась контратака
+    else if (findVictoryMove4Chain(player, getReasonableMove4ChainDepth(depth + 2), &defense_variants))
+      return WGT_VICTORY;
     //Если выигрышная цепочка противника не заблокирована,
     //рекурсивно ищем лучший защитный вариант
     else if (findVictoryMove4Chain(!player, enemy_move4_chain_depth, &defense_variants))
