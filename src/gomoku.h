@@ -198,16 +198,16 @@ protected:
   bool hintBlock5(GPlayer player, GPoint& move) const;
 
   //Поиск выигрышной цепочки шахов
-  bool hintShortestVictoryMove4Chain(
-      GPlayer player,
-      GPoint& move,
-      uint max_move4_chain_depth,
-      GBaseStack* defense_variants = 0);
-  bool hintVictoryMove4Chain(
-      GPlayer player,
-      GPoint& move,
-      uint move4_chain_depth,
-      GBaseStack* defense_variants = 0);
+//  bool hintShortestVictoryMove4Chain(
+//      GPlayer player,
+//      GPoint& move,
+//      uint max_move4_chain_depth,
+//      GBaseStack* defense_variants = 0);
+//  bool hintVictoryMove4Chain(
+//      GPlayer player,
+//      GPoint& move,
+//      uint move4_chain_depth,
+//      GBaseStack* defense_variants = 0);
   //Поиск выигрышной цепочки шахов и полушахов
   bool hintShortestVictoryChain(
     GPlayer player,
@@ -218,7 +218,7 @@ protected:
       GPoint& move,
       uint chain_depth);
 
-  GPoint hintBestAttack(GPlayer player);
+  GPoint hintMaxWgt(GPlayer player);
 
   //Лучшая защита от выигрышной цепочки шахов противника
   GPoint hintBestDefense(
@@ -230,8 +230,9 @@ protected:
   int calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
   int calcWgt(GPlayer player, const GPoint& move, uint depth);
 
-  //Вес лучшей цепочки шахов
-  //bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0);
+  //Поиск выигрышной цепочки шахов
+  bool findShortestVictoryMove4Chain(GPlayer player, uint max_depth, GBaseStack* defense_variants = 0, GPoint* victory_move = 0);
+  bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0, GPoint* victory_move = 0);
 
   //Поиск выигрышной цепочки шахов с заданным начальным шахом
   bool findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants = 0);
@@ -253,7 +254,7 @@ protected:
 
   bool isVictoryForcedMove(GPlayer player, const GPoint& move, uint depth, uint defense_move4_chain_depth);
 
-  int calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
+  int calcMaxAttackWgt(GPlayer player, uint depth, bool is_enemy_forced, GBaseStack* max_wgt_moves = 0);
 
   int calcAttackWgt(GPlayer player, const GPoint& attack_move, const GBaseStack& defense_variants, uint depth);
 
@@ -320,7 +321,7 @@ protected:
   void updateOpen3_Xx_x(const GPoint& p3, const GVector& v1);
   void addOpen3(const GPoint& move);
   void undoOpen3(GMoveData& moveData);
-  bool isDangerOpen3(GPlayer player, const GPoint& move, GBaseStack& defense_variants);
+  bool isDangerOpen3(GPlayer player, const GPoint& move, GBaseStack* defense_variants);
 
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
@@ -345,8 +346,13 @@ protected:
 
   uint getReasonableMove4ChainDepth(uint cur_depth)
   {
-    //return (getAiLevel() > cur_depth) ? (getAiLevel() - cur_depth) : 0;
-    return getAiLevel();
+    return (getAiLevel() > cur_depth) ? (getAiLevel() - cur_depth) : 0;
+    //return getAiLevel();
+  }
+
+  uint getMaxAttackDepth()
+  {
+    return getAiLevel() * 2;
   }
 
   static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);

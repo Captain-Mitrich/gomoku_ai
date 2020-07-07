@@ -489,7 +489,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(6, 7, G_BLACK);
 
   GPoint move4;
-  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 0));
+  assert(findShortestVictoryMove4Chain(G_BLACK, 0, 0, &move4));
   assert((move4 == GPoint{5, 7} || move4 == GPoint{9, 7}));
 
   GStack<32> defense_variants;
@@ -533,7 +533,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(5, 4, G_BLACK);
   //Мат в два хода
   defense_variants.clear();
-  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
+  assert(findShortestVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 5);
   grid = defense_variants;
@@ -551,7 +551,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   //Тоже мат в два хода, но к списку защитных ходов добавляются ходы,
   //благодаря которым ответ на первый шах становится контршахом
   defense_variants.clear();
-  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 1, &defense_variants));
+  assert(findShortestVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   //Защитные ходы могут дублироваться
   assert(defense_variants.size() >= 9);
@@ -572,16 +572,16 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(4, 11, G_BLACK);
   //Ответ на первый шах является контршахом,
   //поэтому мат в два хода невозможен
-  assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 1));
+  assert(!findShortestVictoryMove4Chain(G_BLACK, 1));
 
   doMove(3, 7, G_BLACK);
   doMove(2, 8, G_BLACK);
   doMove(6, 4, G_WHITE);
   //Ответ на контршах также является контршахом,
   //поэтому здесь мат в три хода
-  assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 1));
+  assert(!findShortestVictoryMove4Chain(G_BLACK, 1));
   defense_variants.clear();
-  assert(hintShortestVictoryMove4Chain(G_BLACK, move4, 2, &defense_variants));
+  assert(findShortestVictoryMove4Chain(G_BLACK, 2, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 7);
   grid = defense_variants;
@@ -605,7 +605,7 @@ void TestGomoku::testHintVictoryMove4Chain()
 
   //Ответ на первый шах является контрматом,
   //поэтому мат в три хода невозможен
-  assert(!hintShortestVictoryMove4Chain(G_BLACK, move4, 2));
+  assert(!findShortestVictoryMove4Chain(G_BLACK, 2));
 }
 
 void TestGomoku::testHintBestDefense()
