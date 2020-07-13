@@ -250,7 +250,7 @@ protected:
   int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
 //  int calcAttackWgt(GPlayer player, const GPoint& attack_move, const GBaseStack& defense_variants, uint depth);
 
-  int calcMaxDefenseWgt(GPlayer player, const GBaseStack& variants, uint depth);
+  int calcMaxDefenseWgt(GPlayer player, const GBaseStack& variants, uint depth, bool counter_shah_chain_started);
 //  //Вес лучшей блокировки выигрышной цепочки шахов
 //  int calcMaxDefenseWgt(
 //    GPlayer player,
@@ -330,18 +330,18 @@ protected:
     return m_grids[depth];
   }
 
-  bool isSpecialWgt(int wgt)
-  {
-    return
-      wgt == WGT_VICTORY || wgt == WGT_DEFEAT ||
-      wgt == WGT_NEAR_VICTORY || wgt == WGT_NEAR_DEFEAT ||
-      wgt == WGT_LONG_ATTACK || wgt == WGT_LONG_DEFENSE;
-  }
-
   uint getReasonableMove4ChainDepth(uint cur_depth)
   {
     return (getAiLevel() > cur_depth) ? (getAiLevel() - cur_depth) : 0;
     //return getAiLevel();
+  }
+
+  static bool isSpecialWgt(int wgt)
+  {
+    return wgt >= WGT_LONG_ATTACK || wgt <= WGT_LONG_DEFENSE;
+      /*wgt == WGT_VICTORY || wgt == WGT_DEFEAT ||
+      wgt == WGT_NEAR_VICTORY || wgt == WGT_NEAR_DEFEAT ||
+      wgt == WGT_LONG_ATTACK || wgt == WGT_LONG_DEFENSE;*/
   }
 
   uint getMaxAttackDepth()
@@ -360,7 +360,7 @@ protected:
   static const int WGT_DEFEAT  = -WGT_VICTORY;
   static const int WGT_NEAR_VICTORY = WGT_VICTORY - 1;
   static const int WGT_NEAR_DEFEAT = -WGT_NEAR_VICTORY;
-  static const int WGT_LONG_ATTACK = WGT_NEAR_VICTORY - 1;
+  static const int WGT_LONG_ATTACK = 1000000000;
   static const int WGT_LONG_DEFENSE = -WGT_LONG_ATTACK;
 
   uint m_ai_level;
