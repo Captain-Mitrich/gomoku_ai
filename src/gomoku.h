@@ -244,7 +244,9 @@ protected:
 //  bool isVictoryForcedMove(GPlayer player, const GPoint& move, uint depth, uint defense_move4_chain_depth);
 
   int calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
-  void calcMaxAttackWgt(GPlayer player, uint depth, int& max_wgt, const GVector& v1);
+  int calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth, GBaseStack* max_wgt_moves = 0);
+  void getChainMoves(GStack<32>& chain_moves);
+  void getChainMoves(const GVector& v1, GStack<32>& chain_moves);
 //  int calcMaxAttackWgt(GPlayer player, uint depth, bool is_enemy_forced, GBaseStack* max_wgt_moves = 0);
 
   int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);

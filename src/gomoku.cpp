@@ -659,73 +659,83 @@ bool Gomoku::isDefeatBlock5(GPlayer player, const GPoint &block, uint depth, GBa
 
 int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves)
 {
-  int max_wgt = WGT_DEFEAT;
-
-  if (depth > maxAttackDepth())
-  {
-    assert(!max_wgt_moves);
-    //Если за предельной глубиной все еще можем продолжать атаку,
-    //возвращаем вес длинной атаки
-    const auto& danger_moves = dangerMoves(player);
-    for (const GPoint* danger_move = &danger_moves.cells().back(); ; --danger_move)
-    {
-      if (isStillDangerMove(*danger_move))
-        return WGT_LONG_ATTACK;
-      if (danger_move == danger_moves.cells().begin())
-        break;
-    }
-    return 0;
-  }
   if (depth == 0)
   {
-    //На глубине 0 рассматриваем все потенциально опасные ходы от новых к старым
-    const auto& danger_moves = dangerMoves(player);
-    //Сначала шахи
-    for (const GPoint* danger_move = &danger_moves.cells().back(); ; --danger_move)
-    {
-      if (calcAttackMove4Wgt(player, *danger_move, depth, max_wgt, max_wgt_moves) == WGT_VICTORY)
-        return WGT_VICTORY;
-    }
-    //Затем полушахи, которые не являются шахами
-    for (const GPoint* danger_move = &danger_moves.cells().back(); ; --danger_move)
-    {
-      if (calcAttackOpen3Wgt(player, *danger_move, depth, max_wgt, max_wgt_moves) == WGT_VICTORY)
-        return WGT_VICTORY;
-    }
+    return calcMaxAttackWgt(player, dangerMoves(player).cells(), max_wgt_moves);
   }
   else
   {
-    TODO //Рассмотреть сначала шахи, затем полушахи
-    //На большей глубине рассматриваем ходы, лежащие на одной линии с предыдущим
-    for (int vi = 0; vi < 4; ++vi)
+    assert(!max_wgt_moves);
+    //На глубине больше 0 проверяем все ходы, лежащие на одной линии с предыдущим
+    GStack<32> chain_moves;
+    getChainMoves(chain_moves);
+    if (depth > maxAttackDepth())
     {
       assert(!max_wgt_moves);
-      calcMaxAttackWgt(player, depth, max_wgt, vecs1[vi]);
-      calcMaxAttackWgt(player, depth, max_wgt, -vecs1[vi]);
+      //Если за предельной глубиной все еще можем продолжать атаку,
+      //возвращаем вес длинной атаки
+      for (const GPoint* chain_move = &chain_moves.back(); ; --danger_move)
+      {
+        if (isDangerMove(*chain_move))
+          return WGT_LONG_ATTACK;
+        if (chain_move == chain_moves.cells().begin())
+          break;
+      }
+      return 0;
     }
+    else
+      return calcMaxAttackWgt(player, chain_moves);
+  }
+}
+
+int Gomoku::calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth, GBaseStack* max_wgt_moves)
+{
+  int max_wgt = WGT_DEFEAT;
+
+  //Сначала рассматриваем шахи
+  for (const GPoint* attack_move = &attack_moves.back(); ; --attack_move)
+  {
+    if (calcAttackMove4Wgt(player, *attack_move, depth, max_wgt, max_wgt_moves) == WGT_VICTORY)
+      return WGT_VICTORY;
+  }
+  //Затем полушахи, которые не являются шахами
+  for (const GPoint* attack_move = &attack_moves.cells().back(); ; --attack_move)
+  {
+    if (calcAttackOpen3Wgt(player, *attack_move, depth, max_wgt, max_wgt_moves) == WGT_VICTORY)
+      return WGT_VICTORY;
   }
   return max_wgt;
 }
 
-void Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, int& max_wgt, const GVector& v1)
+void Gomoku::getChainMoves(GStack<32>& chain_moves)
 {
-  assert(player == curPlayer());
+  for (int i = 0; i < 4; ++i)
+  {
+    getChainMoves(vecs1[i], chain_moves);
+    getChainMoves(-vecs1[i], chain_moves);
+  }
+}
+
+void Gomoku::getChainMoves(const GVector &v1, GStack<32> &chain_moves)
+{
   assert(cells().size() >= 2);
   //Рассматриваем ходы, лежащие на одной линии с предыдущим в заданном направлении
+  GPlayer player = curPlayer();
   GPoint move = cells()[cells().size() - 2];
+  //Функция вызывается при игре в уме,
+  //поэтому есть уверенность, что два последних хода принадлежат разным игрокам
+  assert(get(move).player == player);
   for (int i = 0; i < 4; ++i)
   {
     move += v1;
     int move_player = get(move).player;
     if (move_player == !player)
       return;
-    if (move_player == player)
-      continue;
-    int wgt = calcAttackWgt(player, move, depth);
-    if (updateMaxWgt(move, wgt, 0, max_wgt) == WGT_VICTORY)
-      return;
+    if (move_player == G_EMPTY)
+      chain_moves.push() = move;
   }
 }
+
 //int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, bool is_enemy_forced, GBaseStack* max_wgt_moves)
 //{
 //  int max_wgt = WGT_DEFEAT;
