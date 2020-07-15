@@ -660,9 +660,7 @@ bool Gomoku::isDefeatBlock5(GPlayer player, const GPoint &block, uint depth, GBa
 int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves)
 {
   if (depth == 0)
-  {
-    return calcMaxAttackWgt(player, dangerMoves(player).cells(), max_wgt_moves);
-  }
+    return calcMaxAttackWgt(player, dangerMoves(player).cells(), 0, max_wgt_moves);
   else
   {
     assert(!max_wgt_moves);
@@ -684,7 +682,7 @@ int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_mov
       return 0;
     }
     else
-      return calcMaxAttackWgt(player, chain_moves);
+      return calcMaxAttackWgt(player, chain_moves, depth, 0);
   }
 }
 
@@ -773,12 +771,12 @@ void Gomoku::getChainMoves(const GVector &v1, GStack<32> &chain_moves)
 //  return max_wgt;
 //}
 
-int Gomoku::calcAttackWgt(GPlayer player, const GPoint &move, uint depth)
+int Gomoku::calcAttackMove4Wgt(GPlayer player, const GPoint &move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves)
 {
-  assert(isEmptyCell(move));
-
-  const auto& danger_move_data = dangerMoves(player).get(move);
-  const auto& moves5 = danger_move_data.m_moves5;
+  if (!isEmptyCell(move))
+    return WGT_DEFEAT;
+  const auto& move_data = dangerMoves(player).get(move);
+  const auto& moves5 = move_data.m_moves5;
   uint move5_count = 0;
   for (uint i = 0; i < moves5.size(); ++i)
   {
@@ -787,36 +785,94 @@ int Gomoku::calcAttackWgt(GPlayer player, const GPoint &move, uint depth)
     if (++move5_count == 2)
       return WGT_VICTORY;
   }
-
-  if (!move5_count && !danger_move_data.m_open3) //ход не опасен
-    return 0;
+  if (!move5_count)
+    return WGT_DEFEAT;
 
   GMoveMaker gmm(this, player, move);
 
-  int enemy_wgt;
-  if (move5_count)
-    enemy_wgt = calcDefenseWgt(!player, m_moves5[player].lastCell(), depth);
-  else
-  {
-    GStack<4> defense_variants;
-    const GMoveData& md = get(move);
-    //Опасная открытая тройка должна породить как минимум две пары ходов 4,
-    //и среди них хотя бы один должен встретиться дважды
-    if (md.m_moves4.size() < 4)
-      return 0;
-    for (uint i = 0; i < md.m_moves4.size(); ++i)
-    {
-      if (findVictoryMove4Chain(player, md.m_moves4[i], 0, &defense_variants))
-        break;
-    }
-    if (defense_variants.empty())
-      return 0;
-    enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth);
-  }
-  if (isSpecialWgt(enemy_wgt))
-    return -enemy_wgt;
-  return 0;
+  int wgt = -calcDefenseWgt(!player, m_moves5[player].lastCell(), depth);
+  if (!isVictoryOrDefeat(wgt))
+    wgt += get(move).wgt[player];
+  return updateMaxWgt(move, wgt, max_wgt_moves, max_wgt);
 }
+
+int Gomoku::calcAttackOpen3Wgt(GPlayer player, const GPoint &move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves)
+{
+  if (!isEmptyCell(move))
+    return WGT_DEFEAT;
+  const auto& move_data = dangerMoves(player).get(move);
+  if (!move_data.m_open3)
+    return WGT_DEFEAT;
+  //Не рассматриваем полушахи, которые одновременно являются шахами
+  if (isDangerMove4(player, move))
+    return WGT_DEFEAT;
+
+  GMoveMaker gmm(this, player, move);
+
+  GStack<4> defense_variants;
+  const GMoveData& md = get(move);
+  //Опасная открытая тройка должна породить как минимум две пары ходов 4,
+  //и среди них хотя бы один должен встретиться дважды
+  if (md.m_moves4.size() < 4)
+    return WGT_DEFEAT;
+  for (uint i = 0; i < md.m_moves4.size(); ++i)
+  {
+    if (findVictoryMove4Chain(player, md.m_moves4[i], 0, &defense_variants))
+      break;
+  }
+  if (defense_variants.empty())
+    return WGT_DEFEAT;
+
+  int wgt = calcMaxDefenseWgt(!player, defense_variants, depth);
+
+  if (!isVictoryOrDefeat(wgt))
+    wgt += get(move).wgt[player];
+  return updateMaxWgt(move, wgt, max_wgt_moves, max_wgt);
+}
+//int Gomoku::calcAttackWgt(GPlayer player, const GPoint &move, uint depth)
+//{
+//  assert(isEmptyCell(move));
+
+//  const auto& danger_move_data = dangerMoves(player).get(move);
+//  const auto& moves5 = danger_move_data.m_moves5;
+//  uint move5_count = 0;
+//  for (uint i = 0; i < moves5.size(); ++i)
+//  {
+//    if (!isEmptyCell(moves5[i]))
+//      continue;
+//    if (++move5_count == 2)
+//      return WGT_VICTORY;
+//  }
+
+//  if (!move5_count && !danger_move_data.m_open3) //ход не опасен
+//    return 0;
+
+//  GMoveMaker gmm(this, player, move);
+
+//  int enemy_wgt;
+//  if (move5_count)
+//    enemy_wgt = calcDefenseWgt(!player, m_moves5[player].lastCell(), depth);
+//  else
+//  {
+//    GStack<4> defense_variants;
+//    const GMoveData& md = get(move);
+//    //Опасная открытая тройка должна породить как минимум две пары ходов 4,
+//    //и среди них хотя бы один должен встретиться дважды
+//    if (md.m_moves4.size() < 4)
+//      return 0;
+//    for (uint i = 0; i < md.m_moves4.size(); ++i)
+//    {
+//      if (findVictoryMove4Chain(player, md.m_moves4[i], 0, &defense_variants))
+//        break;
+//    }
+//    if (defense_variants.empty())
+//      return 0;
+//    enemy_wgt = calcMaxDefenseWgt(!player, defense_variants, depth);
+//  }
+//  if (isSpecialWgt(enemy_wgt))
+//    return -enemy_wgt;
+//  return 0;
+//}
 //int Gomoku::calcAttackWgt(GPlayer player, const GPoint& move, const GBaseStack& defense_variants, uint depth)
 //{
 //  int wgt = get(move).wgt[player];

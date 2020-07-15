@@ -249,7 +249,9 @@ protected:
   void getChainMoves(const GVector& v1, GStack<32>& chain_moves);
 //  int calcMaxAttackWgt(GPlayer player, uint depth, bool is_enemy_forced, GBaseStack* max_wgt_moves = 0);
 
-  int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
+  int calcAttackMove4Wgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves);
+  int calcAttackOpen3Wgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves);
+//  int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
 //  int calcAttackWgt(GPlayer player, const GPoint& attack_move, const GBaseStack& defense_variants, uint depth);
 
   int calcMaxDefenseWgt(GPlayer player, const GBaseStack& variants, uint depth, bool counter_shah_chain_started);
@@ -338,12 +340,10 @@ protected:
     //return getAiLevel();
   }
 
-  static bool isSpecialWgt(int wgt)
+  static bool isVictoryOrDefeat(int wgt)
   {
-    return wgt >= WGT_LONG_ATTACK || wgt <= WGT_LONG_DEFENSE;
-      /*wgt == WGT_VICTORY || wgt == WGT_DEFEAT ||
-      wgt == WGT_NEAR_VICTORY || wgt == WGT_NEAR_DEFEAT ||
-      wgt == WGT_LONG_ATTACK || wgt == WGT_LONG_DEFENSE;*/
+    wgt == WGT_VICTORY || wgt == WGT_DEFEAT;
+    //return wgt >= WGT_LONG_ATTACK || wgt <= WGT_LONG_DEFENSE;
   }
 
   uint getMaxAttackDepth()
@@ -360,8 +360,8 @@ protected:
 
   static const int WGT_VICTORY = std::numeric_limits<int>::max() - 1;
   static const int WGT_DEFEAT  = -WGT_VICTORY;
-  static const int WGT_NEAR_VICTORY = WGT_VICTORY - 1;
-  static const int WGT_NEAR_DEFEAT = -WGT_NEAR_VICTORY;
+//  static const int WGT_NEAR_VICTORY = WGT_VICTORY - 1;
+//  static const int WGT_NEAR_DEFEAT = -WGT_NEAR_VICTORY;
   static const int WGT_LONG_ATTACK = 1000000000;
   static const int WGT_LONG_DEFENSE = -WGT_LONG_ATTACK;
 
