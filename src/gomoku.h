@@ -197,37 +197,70 @@ protected:
   bool hintMove5(GPlayer player, GPoint& move) const;
   bool hintBlock5(GPlayer player, GPoint& move) const;
 
-  //Поиск выигрышной цепочки шахов и полушахов
-  bool hintShortestVictoryChain(
-    GPlayer player,
-    GPoint& move,
-    uint max_move4_chain_depth);
-  bool hintVictoryChain(
-      GPlayer player,
-      GPoint& move,
-      uint chain_depth);
+//  //Поиск выигрышной цепочки шахов и полушахов
+//  bool hintShortestVictoryChain(
+//    GPlayer player,
+//    GPoint& move,
+//    uint max_move4_chain_depth);
+//  bool hintVictoryChain(
+//      GPlayer player,
+//      GPoint& move,
+//      uint chain_depth);
 
   GPoint hintMaxWgt(GPlayer player);
 
-  //Лучшая защита от выигрышной цепочки шахов противника
-  GPoint hintBestDefense(
-      GPlayer player,
-      const GPoint& enemy_move4,
-      const GBaseStack& variants,
-      uint enemy_move4_chain_depth);
+//  //Лучшая защита от выигрышной цепочки шахов противника
+//  GPoint hintBestDefense(
+//      GPlayer player,
+//      const GPoint& enemy_move4,
+//      const GBaseStack& variants,
+//      uint enemy_move4_chain_depth);
 
   int calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
+
   int calcWgt(GPlayer player, const GPoint& move, uint depth);
 
+//  int calcWgt(
+//    GPlayer player,
+//    const GPoint& move,
+//    uint depth,
+//    int& max_wgt,
+//    GBaseStack* max_wgt_moves = 0);
+
   //Поиск выигрышной цепочки шахов
-  bool findShortestVictoryMove4Chain(GPlayer player, uint max_depth, GBaseStack* defense_variants = 0, GPoint* victory_move = 0);
-  bool findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants = 0, GPoint* victory_move = 0);
+  //bool findShortestVictoryMove4Chain(GPlayer player, uint max_depth, GBaseStack* defense_variants = 0, GPoint* victory_move = 0);
+  bool findVictoryMove4Chain(
+    GPlayer player,
+    uint depth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
+
+  bool completeVictoryMove4Chain(
+    GPlayer player,
+    uint depth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
+
+  bool findVictoryMove4Chain(
+    GPlayer player,
+    const GBaseStack& variants,
+    uint depth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
 
   //Поиск выигрышной цепочки шахов с заданным начальным шахом
-  bool findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants = 0);
+  bool findVictoryMove4Chain(
+    GPlayer player,
+    const GPoint& move4,
+    uint depth,
+    GBaseStack* defense_variants = 0);
 
   //Вес блокировки шаха противника в цепочке шахов противника
-  bool isDefeatBlock5(GPlayer player, const GPoint& block, uint depth, GBaseStack* defense_variants = 0);
+  bool isDefeatBlock5(
+    GPlayer player,
+    const GPoint& block,
+    uint depth,
+    GBaseStack* defense_variants = 0);
 
 //  //Является ли ход выигрышным
 //  bool isVictoryMove(GPlayer player, const GPoint& move, bool forced, uint depth);
@@ -243,18 +276,52 @@ protected:
 
 //  bool isVictoryForcedMove(GPlayer player, const GPoint& move, uint depth, uint defense_move4_chain_depth);
 
-  int calcMaxAttackWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
-  int calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth, GBaseStack* max_wgt_moves = 0);
+  int calcMaxAttackWgt(GPlayer player, uint depth, bool new_attack_chain/*, GBaseStack* max_wgt_moves = 0*/);
+  //int calcMaxChainAttackWgt(GPlayer player, uint depth);
+  int calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth/*, GBaseStack* max_wgt_moves = 0*/);
   void getChainMoves(GStack<32>& chain_moves);
-  void getChainMoves(const GVector& v1, GStack<32>& chain_moves);
+  void getChainMoves(GPlayer player, GPoint center, const GVector& v1, GStack<32>& chain_moves);
+  bool isSpace5(GPlayer player, const GPoint& center, const GVector& v1);
+  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space);
 //  int calcMaxAttackWgt(GPlayer player, uint depth, bool is_enemy_forced, GBaseStack* max_wgt_moves = 0);
 
-  int calcAttackMove4Wgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves);
-  int calcAttackOpen3Wgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves);
+  //int calcAttackWgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves = 0);
+  int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
+//  int calcAttackMove4Wgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves = 0);
+//  int calcAttackOpen3Wgt(GPlayer player, const GPoint& move, uint depth, int& max_wgt, GBaseStack* max_wgt_moves = 0);
+  int calcForcedAttackWgt(GPlayer player, const GPoint& move, uint depth, bool new_counter_shah_chain);
 //  int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
 //  int calcAttackWgt(GPlayer player, const GPoint& attack_move, const GBaseStack& defense_variants, uint depth);
 
-  int calcMaxDefenseWgt(GPlayer player, const GBaseStack& variants, uint depth, bool counter_shah_chain_started);
+  int calcMaxDefenseWgt(
+    GPlayer player,
+    const GBaseStack& variants,
+    uint depth,
+    bool new_attack_chain,
+    bool new_counter_shah_chain);
+
+  int calcDefenseWgt(GPlayer player, const GPoint& move, uint depth, bool new_attack_chain, bool new_counter_shah_chain);
+
+  int calcMaxCounterShahWgt(
+    GPlayer player,
+    const GBaseStack& variants,
+    uint depth,
+    int& max_wgt,
+    bool new_attack_chain,
+    GPointStack& processed_moves);
+
+//  int calcCounterShahWgt(
+//    GPlayer player,
+//    const GPoint& move,
+//    uint depth);
+
+//  int calcCounterShahWgt(
+//    GPlayer player,
+//    const GPoint& move,
+//    uint depth,
+//    int& max_wgt,
+//    GPointStack& processed_moves);
+
 //  //Вес лучшей блокировки выигрышной цепочки шахов
 //  int calcMaxDefenseWgt(
 //    GPlayer player,
@@ -275,7 +342,7 @@ protected:
 //    bool is_player_forced,
 //    bool is_enemy_forced);
 
-//  //Вес хода для защиты от выигрышной цепочки шахов противника
+  //Вес хода для защиты от выигрышной цепочки шахов противника
 //  int calcDefenseWgt(
 //    GPlayer player,
 //    const GPoint& move,
@@ -327,7 +394,7 @@ protected:
   int getBlockingMoveWgt(int line_len);
   int getLineWgt(int line_len);
 
-  GPointStack& getGrid(uint depth)
+  GPointStack& getDefenseGrid(uint depth)
   {
     assert(depth < MAX_DEPTH);
     m_grids[depth].clear();
@@ -340,15 +407,25 @@ protected:
     //return getAiLevel();
   }
 
-  static bool isVictoryOrDefeat(int wgt)
+  uint maxAttackDepth()
   {
-    wgt == WGT_VICTORY || wgt == WGT_DEFEAT;
-    //return wgt >= WGT_LONG_ATTACK || wgt <= WGT_LONG_DEFENSE;
+    return getAiLevel();
+  }
+//  uint getMaxAttackDepth()
+//  {
+//    return getAiLevel() * 2;
+//  }
+
+  int getStoredWgt(GPlayer player, const GPoint& move)
+  {
+    assert(get(move).player != !player);
+    return get(move).wgt[player];
   }
 
-  uint getMaxAttackDepth()
+  static bool isVictoryOrDefeat(int wgt)
   {
-    return getAiLevel() * 2;
+    return wgt == WGT_VICTORY || wgt == WGT_DEFEAT;
+    //return wgt >= WGT_LONG_ATTACK || wgt <= WGT_LONG_DEFENSE;
   }
 
   static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);
@@ -364,6 +441,10 @@ protected:
 //  static const int WGT_NEAR_DEFEAT = -WGT_NEAR_VICTORY;
   static const int WGT_LONG_ATTACK = 1000000000;
   static const int WGT_LONG_DEFENSE = -WGT_LONG_ATTACK;
+  //Вес длинной атаки может быть скорректирован весом ситуации, в том числе в меньшую сторону
+  //Поэтому нужен допуск, чтобы распознать длинную атаку
+  static const int WGT_MIN_LONG_ATTACK = 999000000;
+  static const int WGT_MIN_LONG_DEFENSE = -WGT_MIN_LONG_ATTACK;
 
   uint m_ai_level;
 

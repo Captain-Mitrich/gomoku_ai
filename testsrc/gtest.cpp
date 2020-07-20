@@ -3,6 +3,7 @@
 #include "../src/gline.h"
 #include "../src/grandom.h"
 #include <iostream>
+#include <algorithm>
 
 using namespace nsg;
 
@@ -45,7 +46,13 @@ public:
 
   void testHintVictoryMove4Chain();
 
-  void testHintBestDefense();
+  void testCalcAttackMove4Wgt();
+
+  void testCalcMaxAttackWgt();
+
+  void testCalcWgt();
+
+  //void testHintBestDefense();
 
 protected:
   void testEmpty();
@@ -489,7 +496,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(6, 7, G_BLACK);
 
   GPoint move4;
-  assert(findShortestVictoryMove4Chain(G_BLACK, 0, 0, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 0, 0, &move4));
   assert((move4 == GPoint{5, 7} || move4 == GPoint{9, 7}));
 
   GStack<32> defense_variants;
@@ -533,7 +540,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(5, 4, G_BLACK);
   //Мат в два хода
   defense_variants.clear();
-  assert(findShortestVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 5);
   grid = defense_variants;
@@ -551,7 +558,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   //Тоже мат в два хода, но к списку защитных ходов добавляются ходы,
   //благодаря которым ответ на первый шах становится контршахом
   defense_variants.clear();
-  assert(findShortestVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   //Защитные ходы могут дублироваться
   assert(defense_variants.size() >= 9);
@@ -572,16 +579,16 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(4, 11, G_BLACK);
   //Ответ на первый шах является контршахом,
   //поэтому мат в два хода невозможен
-  assert(!findShortestVictoryMove4Chain(G_BLACK, 1));
+  assert(!findVictoryMove4Chain(G_BLACK, 1));
 
   doMove(3, 7, G_BLACK);
   doMove(2, 8, G_BLACK);
   doMove(6, 4, G_WHITE);
   //Ответ на контршах также является контршахом,
   //поэтому здесь мат в три хода
-  assert(!findShortestVictoryMove4Chain(G_BLACK, 1));
+  assert(!findVictoryMove4Chain(G_BLACK, 1));
   defense_variants.clear();
-  assert(findShortestVictoryMove4Chain(G_BLACK, 2, &defense_variants, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 2, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 7);
   grid = defense_variants;
@@ -605,46 +612,123 @@ void TestGomoku::testHintVictoryMove4Chain()
 
   //Ответ на первый шах является контрматом,
   //поэтому мат в три хода невозможен
-  assert(!findShortestVictoryMove4Chain(G_BLACK, 2));
+  assert(!findVictoryMove4Chain(G_BLACK, 2));
 }
 
-void TestGomoku::testHintBestDefense()
+void TestGomoku::testCalcAttackMove4Wgt()
 {
   doMove(7, 7, G_BLACK);
   doMove(8, 8, G_BLACK);
   doMove(9, 9, G_BLACK);
 
-  GStack<gridSize()> defense_variants;
-  defense_variants.push() = {5, 5};
-  defense_variants.push() = {10, 10};
-  defense_variants.push() = {6, 6};
-
-  //Полушах контрится смежными ходами
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
-  GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0);
-  assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
-
-  doMove(6, 8, G_BLACK);
-  doMove(4, 10, G_BLACK);
-  //Вилка 3х3 не контрится
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{-1, -1}));
-
-  doMove(5, 7, G_WHITE);
-  doMove(5, 8, G_WHITE);
-  doMove(5, 10, G_WHITE);
-  doMove(5, 6, G_BLACK);
-  //Нейтрализуем вилку контршахом
-  //Контршахи не рассматриваются на следующем уровне глубины
-  //При этом вес контршаха определяется как почти проигрышный
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_NEAR_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
-  //При более высоком уровне сложности контршах рассматривается на следующем уровне глубины,
-  //и программа определяет, что он блокирует вилку
-  setAiLevel(1);
-  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
-  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
+  int wgt = calcAttackWgt(G_BLACK, {10, 10}, 0);
+  assert(wgt == WGT_VICTORY);
 }
+
+void TestGomoku::testCalcMaxAttackWgt()
+{
+  doMove(7, 7);
+  doMove(7, 6);
+  doMove(8, 6);
+  doMove(6, 8);
+  doMove(6, 4);
+  doMove(9, 7);
+  doMove(8, 4);
+  doMove(8, 5);
+
+  GStack<gridSize()> max_wgt_moves;
+  int wgt = calcMaxAttackWgt(G_BLACK, 0, &max_wgt_moves);
+  assert(wgt > WGT_MIN_LONG_ATTACK);
+  assert(max_wgt_moves.size() == 1);
+  assert(max_wgt_moves[0] == (GPoint{9, 4}));
+
+  assert(calcAttackWgt(G_BLACK, {9, 4}, 0) > WGT_MIN_LONG_ATTACK);
+  assert(calcAttackWgt(G_BLACK, {7, 4}, 0) < WGT_MIN_LONG_ATTACK);
+  assert(calcAttackWgt(G_BLACK, {5, 4}, 0) < WGT_MIN_LONG_ATTACK);
+}
+
+void TestGomoku::testCalcWgt()
+{
+  doMove(7, 7); //
+  doMove(7, 6);
+  doMove(8, 6); //
+  doMove(6, 8);
+  doMove(6, 4); //
+  doMove(9, 7);
+  doMove(8, 4); //
+  doMove(8, 5);
+  doMove(9, 4); //
+  doMove(7, 4);
+  doMove(10, 7);//
+  doMove(5, 2);
+  doMove(9, 6); //
+  doMove(10, 6);
+  doMove(6, 3); //
+  doMove(8, 8);
+  doMove(7, 9); //
+  doMove(6, 5);
+  doMove(5, 4); //
+  doMove(7, 8);
+  doMove(9, 8); //
+  doMove(6, 7);
+
+  GStack<gridSize()> max_wgt_moves;
+  int max_wgt = calcMaxWgt(G_BLACK, 0, &max_wgt_moves);
+  assert(max_wgt > WGT_DEFEAT);
+  assert(max_wgt_moves.size() > 0);
+  const GPoint& move = max_wgt_moves[0];
+  assert(move == (GPoint{5, 8}) || move == (GPoint{4, 8}) || move == (GPoint{4, 9}));
+  int wgt = calcWgt(G_BLACK, {5, 8}, 0);
+  assert(wgt > WGT_DEFEAT && wgt < WGT_MIN_LONG_DEFENSE);
+  wgt = calcWgt(G_BLACK, {4, 8}, 0);
+  assert(wgt > WGT_DEFEAT && wgt < WGT_MIN_LONG_DEFENSE);
+  wgt = calcWgt(G_BLACK, {4, 9}, 0);
+  assert(wgt > WGT_DEFEAT && wgt < WGT_MIN_LONG_DEFENSE);
+//  doMove(5, 8); //
+//  doMove(5, 6);
+//  doMove(8, 9); //
+
+//  GPointStack processed_moves;
+//  calcMaxCounterShahWgt(G_WHITE, dangerMoves(G_WHITE).cells(), 0, max_wgt, processed_moves);
+}
+
+//void TestGomoku::testHintBestDefense()
+//{
+//  doMove(7, 7, G_BLACK);
+//  doMove(8, 8, G_BLACK);
+//  doMove(9, 9, G_BLACK);
+
+//  GStack<gridSize()> defense_variants;
+//  defense_variants.push() = {5, 5};
+//  defense_variants.push() = {10, 10};
+//  defense_variants.push() = {6, 6};
+
+//  //Полушах контрится смежными ходами
+//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
+//  GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0);
+//  assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
+
+//  doMove(6, 8, G_BLACK);
+//  doMove(4, 10, G_BLACK);
+//  //Вилка 3х3 не контрится
+//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
+//  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{-1, -1}));
+
+//  doMove(5, 7, G_WHITE);
+//  doMove(5, 8, G_WHITE);
+//  doMove(5, 10, G_WHITE);
+//  doMove(5, 6, G_BLACK);
+//  //Нейтрализуем вилку контршахом
+//  //Контршахи не рассматриваются на следующем уровне глубины
+//  //При этом вес контршаха определяется как почти проигрышный
+//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_NEAR_DEFEAT);
+//  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
+//  //При более высоком уровне сложности контршах рассматривается на следующем уровне глубины,
+//  //и программа определяет, что он блокирует вилку
+//  setAiLevel(1);
+//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
+//  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
+//}
 
 using TestFunc = void();
 void gtest(const char* name, TestFunc f, uint count = 1)
@@ -680,5 +764,8 @@ int main()
   gtest("testOpen3", &TestGomoku::testOpen3);
   gtest("testHintMove5", &TestGomoku::testHintMove5);
   gtest("testHintVictoryMove4Chain", &TestGomoku::testHintVictoryMove4Chain);
-  gtest("testHintBestDefense", &TestGomoku::testHintBestDefense);
+  gtest("testCalcAttackMove4Wgt", &TestGomoku::testCalcAttackMove4Wgt);
+  gtest("testCalcMaxAttackWgt", &TestGomoku::testCalcMaxAttackWgt);
+  gtest("testCalcWgt", &TestGomoku::testCalcWgt);
+  //gtest("testHintBestDefense", &TestGomoku::testHintBestDefense);
 }
