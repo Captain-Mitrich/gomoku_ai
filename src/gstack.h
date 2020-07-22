@@ -22,11 +22,6 @@ public:
     return m_size == 0;
   }
 
-//  void clear()
-//  {
-//    m_size = 0;
-//  }
-
   uint size() const
   {
     return m_size;
@@ -80,7 +75,6 @@ public:
   void pop()
   {
     assert(!empty());
-    //return m_data[--m_size];
     m_data[--m_size].~T();
   }
 

@@ -8,19 +8,6 @@
 namespace nsg
 {
 
-////Обычно дефолтное пустое значение получается с помощью конструктора без параметров
-////Если требуется иное, нужна специализация шаблона TDefaultEmptyValue
-////В специализированном шаблоне нужно переопределить переменную value
-////(в которой хранится пустое значение), причем тип пустого значения может отличаться от T
-//template <typename T>
-//struct TDefaultEmptyValue
-//{
-//  static const T value;
-//};
-
-//template <typename T>
-//const T TDefaultEmptyValue<T>::value = T();
-
 //Обычно пустое значение по умолчанию получается с помощью конструктора без параметров
 //Если требуется иное, нужна специализация
 //Тип специализированного значения может отличаться от Т
@@ -183,6 +170,7 @@ protected:
 protected:
   T m_data[width()][height()];
 };
+
 template <typename T, int W = GRID_WIDTH, int H = GRID_HEIGHT>
 class TGridStack : public TGridConst<T, W, H>
 {
@@ -232,6 +220,7 @@ public:
     m_cells.pop();
   }
 };
+
 template<typename T>
 using ListIter = typename std::list<T>::iterator;
 
@@ -272,44 +261,6 @@ public:
 protected:
   std::list<GPoint> m_cells;
 };
-//class TGridSet : public TGridConst<ListIter<GPoint>>
-//{
-//public:
-//  TGridSet(int width, int height) : Base(width, height)
-//  {}
-
-//  const std::list<GPoint>& cells() const
-//  {
-//    return m_cells;
-//  }
-
-//  void insert(const GPoint& p)
-//  {
-//    auto& iter = Base::ref(p);
-//    //if (isEmptyItem(iter))
-//    if (TEmptyChecker<ListIter<GPoint>>::empty(iter))
-//    {
-//      iter = m_cells.emplace(m_cells.begin());
-//      (GPoint&)(*iter) = p;
-//    }
-//  }
-
-//  void remove(const GPoint& p)
-//  {
-//    auto& iter = Base::ref(p);
-//    //if (isEmptyItem(iter))
-//    if (TEmptyChecker<ListIter<GPoint>>::empty(iter))
-//      return;
-//    m_cells.erase(iter);
-//    TCleaner<ListIter<GPoint>>::clear(iter);
-//  }
-
-//protected:
-//  std::list<GPoint> m_cells;
-
-//private:
-//  using Base = TGridConst<ListIter<GPoint>>;
-//};
 
 } //namespace nsg
 
