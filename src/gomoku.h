@@ -3,8 +3,9 @@
 
 #include "igomoku.h"
 #include "ggrid.h"
-#include "gline.h"
 #include "gstack.h"
+#include "gtree.h"
+#include "gline.h"
 #include "gplayer.h"
 #include "gint.h"
 #include <iostream>
@@ -154,6 +155,15 @@ public:
   bool      m_open3;  //Для открытой тройки храним признак открытой тройки
 };
 
+struct GMove4Pair
+{
+  GPoint move4;
+  GPoint block;
+};
+
+using GMove4Tree = GTree<GMove4Pair>;
+using GMove4Edge = GEdge<GMove4Pair>;
+
 class Gomoku : public IGomoku, protected GGrid<GRID_WIDTH, GRID_HEIGHT>
 {
 public:
@@ -195,46 +205,87 @@ protected:
   //Поиск выигрышной цепочки шахов
   bool findVictoryMove4Chain(
     GPlayer player,
-    uint depth,
     GBaseStack* defense_variants = 0,
     GPoint* victory_move = 0);
 
-  bool completeVictoryMove4Chain(
+  //Поиск выигрышной цепочки шахов
+  //для дочерних вариантов заданного непустого узла
+  bool processChildMoves4(
+    GMove4Tree& tree,
     GPlayer player,
-    uint depth,
     GBaseStack* defense_variants = 0,
     GPoint* victory_move = 0);
 
-  bool findVictoryMove4Chain(
+  //Поиск выигрышной цепочки шахов для дочернего варианта
+  bool findMove4Chain(
+    GMove4Edge& edge,
+    GPlayer player,
+    GBaseStack* defense_variants = 0);
+
+  //Поиск выигрышого шаха (вилки 4х4)
+  //среди вариантов, рассматриваемых на следующем уровне глубины
+  bool addChildMoves4(
+    GMove4Tree& leaf,
     GPlayer player,
     const GBaseStack& variants,
-    uint depth,
     GBaseStack* defense_variants = 0,
     GPoint* victory_move = 0);
 
-  //Поиск выигрышной цепочки шахов с заданным начальным шахом
-  bool findVictoryMove4Chain(
+  //Добавляем новый шах (если заданный вариант является шахом)
+  //в заданный узел в качестве дочернего
+  //и проверяем, является ли он выигрышным (вилкой 4х4)
+  bool addChildMove4(
+    GMove4Tree& leaf,
     GPlayer player,
-    const GPoint& move4,
-    uint depth,
+    const GPoint& variants,
+    GPoint* unforced_move4,
     GBaseStack* defense_variants = 0);
 
-  //Вес блокировки шаха противника в цепочке шахов противника
-  bool isDefeatBlock5(
-    GPlayer player,
-    const GPoint& block,
-    uint depth,
-    GBaseStack* defense_variants = 0);
+//  bool findVictoryMove4Chain(
+//    GPlayer player,
+//    uint depth,
+//    GBaseStack* defense_variants = 0,
+//    GPoint* victory_move = 0);
 
-  int calcMaxAttackWgt(GPlayer player, uint depth, bool new_attack_chain/*, GBaseStack* max_wgt_moves = 0*/);
-  int calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth/*, GBaseStack* max_wgt_moves = 0*/);
-  void getChainMoves(GStack<32>& chain_moves);
-  void getChainMoves(GPlayer player, GPoint center, const GVector& v1, GStack<32>& chain_moves);
-  bool isSpace5(GPlayer player, const GPoint& center, const GVector& v1);
-  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space);
+//  bool completeVictoryMove4Chain(
+//    GPlayer player,
+//    uint depth,
+//    GBaseStack* defense_variants = 0,
+//    GPoint* victory_move = 0);
+
+//  bool findVictoryMove4Chain(
+//    GPlayer player,
+//    const GBaseStack& variants,
+//    uint depth,
+//    GBaseStack* defense_variants = 0,
+//    GPoint* victory_move = 0);
+
+//  //Поиск выигрышной цепочки шахов с заданным начальным шахом
+//  bool findVictoryMove4Chain(
+//    GPlayer player,
+//    const GPoint& move4,
+//    uint depth,
+//    GBaseStack* defense_variants = 0);
+
+//  //Вес блокировки шаха противника в цепочке шахов противника
+//  bool isDefeatBlock5(
+//    GPlayer player,
+//    const GPoint& block,
+//    uint depth,
+//    GBaseStack* defense_variants = 0);
+
+  int calcMaxAttackWgt(uint depth);
+  //int calcMaxAttackWgt(GPlayer player, uint depth, bool new_attack_chain);
+
+  int calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth);
 
   int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
+
+  //Ответ атакующего игрока на контршах
   int calcForcedAttackWgt(GPlayer player, const GPoint& move, uint depth, bool new_counter_shah_chain);
+
+  //Попытка продолжить атаку в после контратакующего полушаха
+  //int calcMaxForcedAttackWgt(GPlayer player, const GBaseStack& defense_variants, uint depth);
 
   int calcMaxDefenseWgt(
     GPlayer player,
@@ -252,6 +303,11 @@ protected:
     int& max_wgt,
     bool new_attack_chain,
     GPointStack& processed_moves);
+
+  void getChainMoves(GStack<32>& chain_moves);
+  void getChainMoves(GPlayer player, GPoint center, const GVector& v1, GStack<32>& chain_moves);
+  bool isSpace5(GPlayer player, const GPoint& center, const GVector& v1);
+  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
