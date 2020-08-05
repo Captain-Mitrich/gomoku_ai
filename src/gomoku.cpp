@@ -36,7 +36,8 @@ const GVector Gomoku::vecs1[] = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}};
 
 Gomoku::Gomoku() :
   m_ai_level(0),
-  m_line5({-1, -1}, {0, 0})
+  m_line5({-1, -1}, {0, 0}),
+  m_find_best_victory(false)
 {
   initMovesWgt();
 }
@@ -234,13 +235,25 @@ int Gomoku::calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves)
   assert(!max_wgt_moves || max_wgt_moves->empty());
   int max_wgt = WGT_DEFEAT;
 
+//  assert(depth == 0 || m_victory_depth == 0);
+//  if (depth == 0)
+//    m_victory_depth = 0;
+
   GPoint move{0, 0};
   do
   {
     if (!isEmptyCell(move))
       continue;
-    if (updateMaxWgt(move, calcWgt(player, move, depth, false), max_wgt_moves, max_wgt) == WGT_VICTORY)
-      return WGT_VICTORY;
+    int wgt = calcWgt(player, move, depth, false);
+    if (updateMaxWgt(move, wgt, max_wgt_moves, max_wgt) == WGT_VICTORY)
+    {
+      assert(depth <= 1);
+      //на нулевой глубине возвращаем выигрыш за 1 ход
+      //если найден выигрыш за большее число ходов,
+      //продолжаем искать более короткую выигрышную атаку
+      if (depth == 1 || m_victory_depth == 0)
+        return WGT_VICTORY;
+    }
   }
   while (next(move));
 
@@ -251,22 +264,31 @@ int Gomoku::calcWgt(
   GPlayer player,
   const GPoint& move,
   uint depth,
-  bool forced)
+  bool forced,
+  uint* victory_depth)
 {
   assert(isEmptyCell(move));
 
   if (depth >= 2)
     return getStoredWgt(player, move);
 
+  //assert(depth == 0 || m_victory_depth == 0);
+
   int wgt;
   if (depth == 0 || m_enemy_attack_wgt > WGT_MIN_LONG_ATTACK)
   {
+    //m_find_best_victory = (depth == 0);
     if (forced)
-      wgt = calcForcedAttackWgt(player, move, 0, true);
+      wgt = calcForcedAttackWgt(player, move, 0, true, victory_depth);
     else
-      wgt = calcAttackWgt(player, move, 0);
+      wgt = calcAttackWgt(player, move, 0, victory_depth);
     if (wgt > WGT_MIN_LONG_ATTACK)
       return wgt;
+    if (victory_depth && *victory_depth > 0)
+    {
+      assert(depth == 0);
+      return wgt;
+    }
   }
 
   GMoveMaker gmm(this, player, move);
@@ -424,32 +446,44 @@ bool Gomoku::isDefeatBlock5(GPlayer player, const GPoint &block, uint depth, GBa
   return true;
 }
 
-int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, bool new_attack_chain/*, GBaseStack* max_wgt_moves*/)
+int Gomoku::calcMaxAttackWgt(GPlayer player, uint depth, bool new_attack_chain)
 {
+  if (m_find_best_victory && depth >= m_victory_depth)
+    assert(false);
+  assert(!m_find_best_victory || depth < m_victory_depth);
+
   if (depth > maxAttackDepth())
   {
     bool is_victory = new_attack_chain ?
-      findVictoryMove4Chain(player, 100) :
-      completeVictoryMove4Chain(player, 100);
+      findVictoryMove4Chain(player, maxAttackDepth()) :
+      completeVictoryMove4Chain(player, maxAttackDepth());
     if (is_victory)
+    {
+      //TODO доделать, чтобы длина выигрышной цепочки шахов учитывалась
+      //в общей длине выигрышной цепочки
+      if (m_find_best_victory)
+        m_victory_depth = depth;
       return WGT_VICTORY;
+    }
     //Если есть угроза выигрышной цепочки шахов противника,
     //значит продолжить атаку нет возможности
-    if (findVictoryMove4Chain(!player, 100))
+    if (findVictoryMove4Chain(!player, maxAttackDepth()))
       return 0;
     return WGT_LONG_ATTACK;
   }
 
   if (new_attack_chain)
-    return calcMaxAttackWgt(player, dangerMoves(player).cells(), depth/*, max_wgt_moves*/);
+    return calcMaxAttackWgt(player, dangerMoves(player).cells(), depth);
 
   GStack<32> chain_moves;
   getChainMoves(chain_moves);
   return calcMaxAttackWgt(player, chain_moves, depth);
 }
 
-int Gomoku::calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth/*, GBaseStack* max_wgt_moves*/)
+int Gomoku::calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth)
 {
+  assert(!m_find_best_victory || depth < m_victory_depth);
+
   int max_wgt = WGT_DEFEAT;
 
   for (const GPoint* attack_move = attack_moves.end(); attack_move != attack_moves.begin(); )
@@ -460,8 +494,12 @@ int Gomoku::calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uin
     //поскольку открытые тройки уже не дадут выигрыш
     if (depth >= maxAttackDepth() && max_wgt > WGT_MIN_LONG_ATTACK)
     {
-      if (findVictoryMove4Chain(player, *attack_move, 100))
+      if (findVictoryMove4Chain(player, *attack_move, maxAttackDepth()))
+      {
+        if (m_find_best_victory)
+          m_victory_depth = depth;
         return WGT_VICTORY;
+      }
     }
     else
     {
@@ -469,7 +507,13 @@ int Gomoku::calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uin
         continue;
       int wgt = calcAttackWgt(player, *attack_move, depth);
       if (updateMaxWgt(*attack_move, wgt, 0, max_wgt) == WGT_VICTORY)
-        return WGT_VICTORY;
+      {
+        assert(!m_find_best_victory || m_victory_depth >= depth);
+        //Если получили выигрыш за один ход, прекращаем поиск
+        //Иначе если требуется продолжаем искать более короткую выигрышную атаку
+        if (!m_find_best_victory || m_victory_depth == depth)
+          return WGT_VICTORY;
+      }
     }
   }
   return max_wgt;
@@ -478,6 +522,7 @@ int Gomoku::calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uin
 int Gomoku::calcAttackWgt(GPlayer player, const GPoint &move, uint depth)
 {
   assert(isEmptyCell(move));
+  assert(!m_find_best_victory || depth < m_victory_depth);
 
   const auto& move_data = dangerMoves(player).get(move);
   const auto& moves5 = move_data.m_moves5;
@@ -488,9 +533,17 @@ int Gomoku::calcAttackWgt(GPlayer player, const GPoint &move, uint depth)
     if (!isEmptyCell(moves5[i]))
       continue;
     if (++moves5_count == 2)
+    {
+      if (m_find_best_victory)
+        m_victory_depth = depth;
       return WGT_VICTORY;
+    }
   }
   if (moves5_count == 0 && !move_data.m_open3)  //ход не является ни шахом, ни полушахом
+    return 0;
+
+  //Прекращаем развитие атаки, если не можем уменьшить длину выигрышной цепочки
+  if (m_victory_depth > 0 && depth == m_victory_depth - 1)
     return 0;
 
   GMoveMaker gmm(this, player, move);
@@ -528,11 +581,21 @@ int Gomoku::calcAttackWgt(GPlayer player, const GPoint &move, uint depth)
 
 int Gomoku::calcForcedAttackWgt(GPlayer player, const GPoint &move, uint depth, bool new_counter_shah_chain)
 {
+  assert(!m_find_best_victory || depth < m_victory_depth);
+
   GMoveMaker gmm(this, player, move);
 
   const auto& move_data = get(move);
   if (move_data.m_moves5_count > 1)
+  {
+    if (m_find_best_victory)
+      m_victory_depth = depth;
     return WGT_VICTORY;
+  }
+
+  //Прекращаем развитие атаки, если не можем уменьшить длину выигрышной цепочки
+  if (m_victory_depth > 0 && depth == m_victory_depth - 1)
+    return 0;
 
   int wgt;
   if (move_data.m_moves5_count == 1)
@@ -1362,7 +1425,9 @@ int Gomoku::updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves,
 {
   if (wgt < max_wgt)
     return wgt;
-  if (wgt > max_wgt)
+  //Если найден новый выигрышный ход,
+  //значит это выигрыш за меньшее число ходов (лучше предыдущего)
+  if (wgt > max_wgt || wgt == WGT_VICTORY)
   {
     max_wgt = wgt;
     if (max_wgt_moves)

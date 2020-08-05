@@ -52,6 +52,7 @@ public:
 
   void testDefeatMove4();
 
+  void testCalcWgt();
   //void testDefenseOpen3();
   //void testLongAttack();
   //void testHintBestDefeat();
@@ -650,6 +651,8 @@ void TestGomoku::testCalcMaxAttackWgt()
 
 void TestGomoku::testDefeatMove4()
 {
+  setAiLevel(1);
+
   doMove(7, 7); //
   doMove(8, 7);
   doMove(6, 8); //
@@ -665,8 +668,39 @@ void TestGomoku::testDefeatMove4()
   doMove(6, 6); //
   doMove(5, 7);
 
+  m_enemy_attack_wgt = WGT_VICTORY;
   int wgt = calcWgt(G_BLACK, {6, 5}, 0, false);
   assert(wgt == WGT_DEFEAT);
+}
+
+void TestGomoku::testCalcWgt()
+{
+  setAiLevel(4);
+
+  doMove(7, 7); //
+  doMove(8, 7);
+  doMove(8, 8); //
+  doMove(9, 9);
+  doMove(6, 8);//
+  doMove(9, 8);
+  doMove(7, 6); //
+  doMove(9, 7);
+  doMove(9, 10); //
+  doMove(7, 5);
+  doMove(6, 7); //
+  doMove(9, 5);
+  doMove(9, 6); //
+  doMove(8, 6);
+//  doMove(6, 4); //
+//  doMove(8, 5);
+//  doMove(6, 5); //
+//  doMove(6, 6);
+
+  m_enemy_attack_wgt = WGT_VICTORY;
+  int wgt = calcWgt(G_BLACK, {6, 4}, 0, false);
+  assert(wgt < WGT_MIN_LONG_DEFENSE);
+  wgt = calcWgt(G_BLACK, {10, 8}, 0, false);
+  assert(wgt > WGT_MIN_LONG_DEFENSE);
 }
 
 //void TestGomoku::testDefenseOpen3()
@@ -825,6 +859,7 @@ int main()
   gtest("testCalcAttackMove4Wgt", &TestGomoku::testCalcAttackMove4Wgt);
   gtest("testCalcMaxAttackWgt", &TestGomoku::testCalcMaxAttackWgt);
   gtest("testDefeatMove4", &TestGomoku::testDefeatMove4);
+  gtest("testCalcWgt", &TestGomoku::testCalcWgt);
   //gtest("testLongAttack", &TestGomoku::testLongAttack);
   //gtest("testHintBestDefeat", &TestGomoku::testHintBestDefeat);
   //gtest("testHintBestDefense", &TestGomoku::testHintBestDefense);

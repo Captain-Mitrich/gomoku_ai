@@ -190,7 +190,7 @@ protected:
 
   int calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
 
-  int calcWgt(GPlayer player, const GPoint& move, uint depth, bool forced);
+  int calcWgt(GPlayer player, const GPoint& move, uint depth, bool forced, uint* victory_depth = 0);
 
   //Поиск выигрышной цепочки шахов
   bool findVictoryMove4Chain(
@@ -351,6 +351,10 @@ protected:
   GPointStack m_grids[MAX_DEPTH];
 
   int m_enemy_attack_wgt;
+
+  //uint m_victory_depth;
+
+  //bool m_find_best_victory;  //признак поиска самой быстрой выигрышной атаки
 
 protected:
   decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)
