@@ -46,18 +46,7 @@ public:
 
   void testHintVictoryMove4Chain();
 
-  void testCalcAttackMove4Wgt();
-
-  void testCalcMaxAttackWgt();
-
-  void testDefeatMove4();
-
-  void testCalcWgt();
-  //void testDefenseOpen3();
-  //void testLongAttack();
-  //void testHintBestDefeat();
-
-  //void testHintBestDefense();
+  void testFindLongAttack();
 
 protected:
   void testEmpty();
@@ -507,11 +496,11 @@ void TestGomoku::testHintVictoryMove4Chain()
   GStack<32> defense_variants;
   assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
   GTestGrid grid(defense_variants);
-  assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({10, 7}));
+  assert(grid.cells().size() == 2 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}));
   defense_variants.clear();
   assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0, &defense_variants));
   grid = defense_variants;
-  assert(grid.cells().size() == 3 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}) && !grid.isEmptyCell({4, 7}));
+  assert(grid.cells().size() == 2 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}));
 
   doMove(9, 7, G_WHITE);
   assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
@@ -594,7 +583,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   assert(!findVictoryMove4Chain(G_BLACK, 1));
   defense_variants.clear();
   assert(findVictoryMove4Chain(G_BLACK, 2, &defense_variants, &move4));
-  assert((move4 == GPoint{5, 7}));
+  //assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 7);
   grid = defense_variants;
   assert(
@@ -620,207 +609,38 @@ void TestGomoku::testHintVictoryMove4Chain()
   assert(!findVictoryMove4Chain(G_BLACK, 2));
 }
 
-void TestGomoku::testCalcAttackMove4Wgt()
-{
-  doMove(7, 7, G_BLACK);
-  doMove(8, 8, G_BLACK);
-  doMove(9, 9, G_BLACK);
-
-  int wgt = calcAttackWgt(G_BLACK, {10, 10}, 0);
-  assert(wgt == WGT_VICTORY);
-}
-
-void TestGomoku::testCalcMaxAttackWgt()
-{
-  doMove(7, 7);
-  doMove(7, 6);
-  doMove(8, 6);
-  doMove(6, 8);
-  doMove(6, 4);
-  doMove(9, 7);
-  doMove(8, 4);
-  doMove(8, 5);
-
-  int wgt = calcMaxAttackWgt(G_BLACK, 0, true);
-  assert(wgt > WGT_MIN_LONG_ATTACK);
-
-  assert(calcAttackWgt(G_BLACK, {9, 4}, 0) > WGT_MIN_LONG_ATTACK);
-  assert(calcAttackWgt(G_BLACK, {7, 4}, 0) < WGT_MIN_LONG_ATTACK);
-  assert(calcAttackWgt(G_BLACK, {5, 4}, 0) < WGT_MIN_LONG_ATTACK);
-}
-
-void TestGomoku::testDefeatMove4()
-{
-  setAiLevel(1);
-
-  doMove(7, 7); //
-  doMove(8, 7);
-  doMove(6, 8); //
-  doMove(5, 9);
-  doMove(7, 10);//
-  doMove(7, 8);
-  doMove(6, 9); //
-  doMove(6, 10);
-  doMove(4, 8); //
-  doMove(7, 9);
-  doMove(4, 7); //
-  doMove(5, 8);
-  doMove(6, 6); //
-  doMove(5, 7);
-
-  m_enemy_attack_wgt = WGT_VICTORY;
-  int wgt = calcWgt(G_BLACK, {6, 5}, 0, false);
-  assert(wgt == WGT_DEFEAT);
-}
-
-void TestGomoku::testCalcWgt()
+void TestGomoku::testFindLongAttack()
 {
   setAiLevel(4);
 
   doMove(7, 7); //
-  doMove(8, 7);
-  doMove(8, 8); //
-  doMove(9, 9);
-  doMove(6, 8);//
-  doMove(9, 8);
+  doMove(6, 8);
   doMove(7, 6); //
-  doMove(9, 7);
-  doMove(9, 10); //
-  doMove(7, 5);
-  doMove(6, 7); //
-  doMove(9, 5);
+  doMove(7, 8);
+  doMove(8, 8); //
+  doMove(8, 7);
   doMove(9, 6); //
+  doMove(6, 6);
+  doMove(6, 7); //
+  doMove(5, 8);
+  doMove(9, 4); //
+  doMove(4, 8);
+  doMove(3, 8); //
+  doMove(7, 5);
+  doMove(5, 7); //
+  doMove(8, 5);
+  doMove(10, 5); //
+  doMove(9, 7);
+  doMove(10, 4); //
   doMove(8, 6);
-//  doMove(6, 4); //
-//  doMove(8, 5);
-//  doMove(6, 5); //
-//  doMove(6, 6);
+  doMove(10, 8); //
+  doMove(5, 5);
+  doMove(4, 5); //
+  doMove(6, 4);
+  doMove(5, 3); //
 
-  m_enemy_attack_wgt = WGT_VICTORY;
-  int wgt = calcWgt(G_BLACK, {6, 4}, 0, false);
-  assert(wgt < WGT_MIN_LONG_DEFENSE);
-  wgt = calcWgt(G_BLACK, {10, 8}, 0, false);
-  assert(wgt > WGT_MIN_LONG_DEFENSE);
+  assert(findLongAttack(G_WHITE, {7, 3}, 5));
 }
-
-//void TestGomoku::testDefenseOpen3()
-//{
-//  setAiLevel(3);
-
-//  doMove(7, 7); //
-//  doMove(7, 8);
-//  doMove(8, 8); //
-//  doMove(6, 6);
-//  doMove(9, 7); //
-//  doMove(6, 7);
-//  doMove(6, 5); //
-//  doMove(6, 9);
-//  doMove(6, 10);//
-//  doMove(7, 9);
-//  doMove(8, 9); //
-//  doMove(8, 7);
-//  doMove(9, 6); //
-//  doMove(9, 5);
-//  doMove(5, 10);//
-//  doMove(7, 10);
-//  doMove(4, 7); //
-//  doMove(5, 6);
-//  doMove(3, 6); //
-//  doMove(5, 7);
-//  doMove(10, 8);//
-//  doMove(5, 8);
-//}
-
-//void TestGomoku::testLongAttack()
-//{
-//  setAiLevel(4);
-
-//  doMove(7, 7); //
-//  doMove(6, 8);
-//  doMove(5, 7); //
-//  doMove(6, 6);
-//  doMove(6, 7); //
-//  doMove(4, 7);
-//  doMove(7, 6); //
-//  doMove(7, 8);
-//  doMove(5, 8); //
-//  doMove(8, 5);
-//  doMove(5, 6); //
-//  doMove(5, 5);
-//  doMove(8, 7); //
-//  doMove(9, 7);
-//  doMove(9, 9); //
-
-//  int wgt = calcAttackWgt(G_WHITE, {7, 5}, 0);
-//  assert(wgt > WGT_MIN_LONG_ATTACK);
-//}
-
-//void TestGomoku::testHintBestDefeat()
-//{
-//  doMove(7, 7); //
-//  doMove(7, 6);
-//  doMove(8, 6); //
-//  doMove(6, 8);
-//  doMove(6, 4); //
-//  doMove(9, 7);
-//  doMove(8, 4); //
-//  doMove(8, 5);
-//  doMove(9, 4); //
-//  doMove(7, 4);
-//  doMove(10, 7);//
-//  doMove(5, 2);
-//  doMove(9, 6); //
-//  doMove(10, 6);
-//  doMove(6, 3); //
-//  doMove(8, 8);
-//  doMove(7, 9); //
-//  doMove(6, 5);
-//  doMove(5, 4); //
-//  doMove(7, 8);
-//  doMove(9, 8); //
-//  doMove(6, 7);
-
-//  GPoint move = hintImpl(G_BLACK);
-//  assert(move == (GPoint{5, 8}));
-//}
-
-//void TestGomoku::testHintBestDefense()
-//{
-//  doMove(7, 7, G_BLACK);
-//  doMove(8, 8, G_BLACK);
-//  doMove(9, 9, G_BLACK);
-
-//  GStack<gridSize()> defense_variants;
-//  defense_variants.push() = {5, 5};
-//  defense_variants.push() = {10, 10};
-//  defense_variants.push() = {6, 6};
-
-//  //Полушах контрится смежными ходами
-//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
-//  GPoint best_defense = hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0);
-//  assert((best_defense == GPoint{6, 6} || best_defense == GPoint{10, 10}));
-
-//  doMove(6, 8, G_BLACK);
-//  doMove(4, 10, G_BLACK);
-//  //Вилка 3х3 не контрится
-//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_DEFEAT);
-//  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{-1, -1}));
-
-//  doMove(5, 7, G_WHITE);
-//  doMove(5, 8, G_WHITE);
-//  doMove(5, 10, G_WHITE);
-//  doMove(5, 6, G_BLACK);
-//  //Нейтрализуем вилку контршахом
-//  //Контршахи не рассматриваются на следующем уровне глубины
-//  //При этом вес контршаха определяется как почти проигрышный
-//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) == WGT_NEAR_DEFEAT);
-//  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
-//  //При более высоком уровне сложности контршах рассматривается на следующем уровне глубины,
-//  //и программа определяет, что он блокирует вилку
-//  setAiLevel(1);
-//  assert(calcMaxDefenseWgt(G_WHITE, defense_variants, 0, 0, true, true) > WGT_NEAR_DEFEAT);
-//  assert((hintBestDefense(G_WHITE, {-1, -1}, defense_variants, 0) == GPoint{5, 9}));
-//}
 
 using TestFunc = void();
 void gtest(const char* name, TestFunc f, uint count = 1)
@@ -856,11 +676,5 @@ int main()
   gtest("testOpen3", &TestGomoku::testOpen3);
   gtest("testHintMove5", &TestGomoku::testHintMove5);
   gtest("testHintVictoryMove4Chain", &TestGomoku::testHintVictoryMove4Chain);
-  gtest("testCalcAttackMove4Wgt", &TestGomoku::testCalcAttackMove4Wgt);
-  gtest("testCalcMaxAttackWgt", &TestGomoku::testCalcMaxAttackWgt);
-  gtest("testDefeatMove4", &TestGomoku::testDefeatMove4);
-  gtest("testCalcWgt", &TestGomoku::testCalcWgt);
-  //gtest("testLongAttack", &TestGomoku::testLongAttack);
-  //gtest("testHintBestDefeat", &TestGomoku::testHintBestDefeat);
-  //gtest("testHintBestDefense", &TestGomoku::testHintBestDefense);
+  gtest("testFindLongAttack", &TestGomoku::testFindLongAttack);
 }

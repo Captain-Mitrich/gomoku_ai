@@ -178,6 +178,7 @@ public:
 protected:
 
   friend class GMoveMaker;
+  friend class GCounterShahChainMaker;
 
   void undoImpl();
 
@@ -185,12 +186,6 @@ protected:
   GPoint hintSecondMove() const;
   bool hintMove5(GPlayer player, GPoint& move) const;
   bool hintBlock5(GPlayer player, GPoint& move) const;
-
-  GPoint hintMaxWgt(GPlayer player);
-
-  int calcMaxWgt(GPlayer player, uint depth, GBaseStack* max_wgt_moves = 0);
-
-  int calcWgt(GPlayer player, const GPoint& move, uint depth, bool forced, uint* victory_depth = 0);
 
   //Поиск выигрышной цепочки шахов
   bool findVictoryMove4Chain(
@@ -226,32 +221,28 @@ protected:
     uint depth,
     GBaseStack* defense_variants = 0);
 
-  int calcMaxAttackWgt(GPlayer player, uint depth, bool new_attack_chain/*, GBaseStack* max_wgt_moves = 0*/);
-  int calcMaxAttackWgt(GPlayer player, const GBaseStack& attack_moves, uint depth/*, GBaseStack* max_wgt_moves = 0*/);
+  bool findLongOrVictoryMove4Chain(GPlayer player, uint depth);
+  bool completeLongOrVictoryMove4Chain(GPlayer player, uint depth);
+  bool findLongOrVictoryMove4Chain(GPlayer player, const GBaseStack &variants, uint depth);
+  bool findLongOrVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth);
+  bool isLongOrDefeatBlock5(GPlayer player, const GPoint &block, uint depth);
+
+  bool findVictoryAttack(GPlayer player, uint depth, GPoint* victory_move = 0);
+  bool findVictoryAttack(GPlayer player, const GBaseStack& variants, uint depth, GPoint* victory_move = 0);
+  bool isVictoryMove(GPlayer player, const GPoint& move, uint depth);
+  bool isVictoryMove4(GPlayer player, const GPoint& move, uint depth);
+  bool isNearVictoryOpen3(GPlayer player, const GPoint &move, uint depth);
+  bool isDefeatMove(GPlayer player, const GPoint& move, uint depth);
+
+  bool findLongAttack(GPlayer player, uint depth, GPoint* move = 0);
+  bool findLongAttack(GPlayer player, const GBaseStack& attack_moves, uint depth, GPoint* move = 0);
+  bool findLongAttack(GPlayer player, const GPoint& move, uint depth);
+  bool isLongDefense(GPlayer player, const GPoint& move, uint depth);
+
   void getChainMoves(GStack<32>& chain_moves);
   void getChainMoves(GPlayer player, GPoint center, const GVector& v1, GStack<32>& chain_moves);
   bool isSpace5(GPlayer player, const GPoint& center, const GVector& v1);
   void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space);
-
-  int calcAttackWgt(GPlayer player, const GPoint& move, uint depth);
-  int calcForcedAttackWgt(GPlayer player, const GPoint& move, uint depth, bool new_counter_shah_chain);
-
-  int calcMaxDefenseWgt(
-    GPlayer player,
-    const GBaseStack& variants,
-    uint depth,
-    bool new_attack_chain,
-    bool new_counter_shah_chain);
-
-  int calcDefenseWgt(GPlayer player, const GPoint& move, uint depth, bool new_attack_chain, bool new_counter_shah_chain);
-
-  int calcMaxCounterShahWgt(
-    GPlayer player,
-    const GBaseStack& variants,
-    uint depth,
-    int& max_wgt,
-    bool new_attack_chain,
-    GPointStack& processed_moves);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
@@ -285,7 +276,10 @@ protected:
   void updateOpen3_Xx_x(const GPoint& p3, const GVector& v1);
   void addOpen3(const GPoint& move);
   void undoOpen3(GMoveData& moveData);
-  bool isDangerOpen3(GPlayer player, const GPoint& move, GBaseStack* defense_variants);
+  bool isDangerOpen3(GPlayer player, const GPoint& move, GBaseStack* defense_variants = 0);
+  bool isDangerOpen3(GBaseStack* defense_variants = 0);
+  bool isMate(GPlayer player, const GPoint& move);
+  bool isMate();
 
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
@@ -296,16 +290,9 @@ protected:
   int getBlockingMoveWgt(int line_len);
   int getLineWgt(int line_len);
 
-  GPointStack& getDefenseGrid(uint depth)
-  {
-    assert(depth < MAX_DEPTH);
-    m_grids[depth].clear();
-    return m_grids[depth];
-  }
-
   uint maxAttackDepth()
   {
-    return getAiLevel();
+    return getAiLevel() * 2;
   }
 
   int getStoredWgt(GPlayer player, const GPoint& move)
@@ -314,27 +301,14 @@ protected:
     return get(move).wgt[player];
   }
 
-  static bool isVictoryOrDefeat(int wgt)
-  {
-    return wgt == WGT_VICTORY || wgt == WGT_DEFEAT;
-    //return wgt >= WGT_LONG_ATTACK || wgt <= WGT_LONG_DEFENSE;
-  }
+  void sortVariantsByWgt(GPlayer player);
 
-  static int updateMaxWgt(const GPoint& move, int wgt, GBaseStack* max_wgt_moves, int& max_wgt);
+  bool cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& variant2);
 
   static GPoint randomMove(const GBaseStack& moves);
 
 protected:
   static const GVector vecs1[];  //{1, 0}, {1, 1}, {0, 1}, {-1, 1}
-
-  static const int WGT_VICTORY = std::numeric_limits<int>::max() - 1;
-  static const int WGT_DEFEAT  = -WGT_VICTORY;
-  static const int WGT_LONG_ATTACK = 1000000000;
-  static const int WGT_LONG_DEFENSE = -WGT_LONG_ATTACK;
-  //Вес длинной атаки может быть скорректирован весом ситуации, в том числе в меньшую сторону
-  //Поэтому нужен допуск, чтобы распознать длинную атаку
-  static const int WGT_MIN_LONG_ATTACK = 999000000;
-  static const int WGT_MIN_LONG_DEFENSE = -WGT_MIN_LONG_ATTACK;
 
   uint m_ai_level;
 
@@ -344,17 +318,7 @@ protected:
 
   TGridStack<GDangerMoveData> m_danger_moves[2];
 
-  const static uint MAX_DEPTH = gridSize() / 2;
-
-  //Эти объекты используются на разной глубине рекурсии
-  //Их нельзя создавать в стэке, поскольку создание является дорогой операцией
-  GPointStack m_grids[MAX_DEPTH];
-
-  int m_enemy_attack_wgt;
-
-  //uint m_victory_depth;
-
-  //bool m_find_best_victory;  //признак поиска самой быстрой выигрышной атаки
+  GPoint m_variants_index[gridSize()];
 
 protected:
   decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)
@@ -394,6 +358,46 @@ public:
 
 protected:
   Gomoku* m_g;
+};
+
+//Класс в конструкторе реализует ходы до завершения цепочки контршахов,
+//а в деструкторе откатывает их
+class GCounterShahChainMaker
+{
+public:
+  GCounterShahChainMaker(Gomoku* g) : m_g(g), m_counter(0)
+  {
+    assert(g);
+    for (; ; )
+    {
+      const auto& last_move_data = m_g->get(m_g->lastCell());
+      if (last_move_data.m_moves5_count != 1)
+        break;
+      const GPoint& block = m_g->m_moves5[last_move_data.player].lastCell();
+      m_g->push(block).player = !last_move_data.player;
+      m_g->updateRelatedMovesState();
+      ++m_counter;
+    }
+  }
+
+  ~GCounterShahChainMaker()
+  {
+    assert(m_g);
+    while (m_counter > 0)
+      undo();
+  }
+
+  void undo()
+  {
+    assert(m_counter > 0);
+    m_g->restoreRelatedMovesState();
+    m_g->pop();
+    --m_counter;
+  }
+
+protected:
+  Gomoku* m_g;
+  uint m_counter;
 };
 
 } //namespace nsg
