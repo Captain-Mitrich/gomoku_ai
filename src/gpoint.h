@@ -10,10 +10,10 @@ public:
   int x, y;
 
 public:
-  GPoint(int _x = 0, int _y = 0) : x(_x), y(_y)
-  {}
+//  GPoint(int _x = 0, int _y = 0) : x(_x), y(_y)
+//  {}
 
-  GPoint(const GPoint& point) = default;
+//  GPoint(const GPoint& point) = default;
 
   bool operator==(const GPoint& point) const
   {

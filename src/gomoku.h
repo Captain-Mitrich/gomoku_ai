@@ -2,8 +2,8 @@
 #define GOMOKU_H
 
 #include "igomoku.h"
-#include "gline.h"
 #include "ggrid.h"
+#include "gline.h"
 #include "gstack.h"
 #include "gplayer.h"
 #include "gint.h"
@@ -11,10 +11,6 @@
 
 namespace nsg
 {
-
-static const uint DEF_GRID_WIDTH = 15;
-static const uint DEF_GRID_HEIGHT = 15;
-static const uint DEF_CELL_COUNT = DEF_GRID_WIDTH * DEF_GRID_HEIGHT;
 
 class GMoveWgt
 {
@@ -36,42 +32,57 @@ protected:
   int wgt[2] = {0, 0};
 };
 
+using GBaseStack = TBaseStack<GPoint>;
+
 template <uint MAXSIZE>
 using GStack = TStack<GPoint, MAXSIZE>;
 
 class GStateBackup
 {
 public:
-  GStateBackup() : line5_moves_count(0)
+  GStateBackup() : m_moves5_count(0)
   {}
 
   void addLine5Move()
   {
-    ++line5_moves_count;
+    ++m_moves5_count;
   }
 
   bool emptyLine4Moves()
   {
-    return m_line4_moves.empty();
+    return m_moves4.empty();
   }
 
   //ходы линий 4 всегда добавляются парами
   //(два свободных хода линии 3)
   void pushLine4Moves(const GPoint& move1, const GPoint& move2)
   {
-    m_line4_moves.push() = move1;
-    m_line4_moves.push() = move2;
+    m_moves4.push() = move1;
+    m_moves4.push() = move2;
   }
 
-  void popLine4Moves(const GPoint*& move1, const GPoint*& move2)
+  void popLine4Moves(GPoint& move1, GPoint& move2)
   {
-    move2 = &m_line4_moves.pop();
-    move1 = &m_line4_moves.pop();
+    move2 = m_moves4.back();
+    m_moves4.pop();
+    move1 = m_moves4.back();
+    m_moves4.pop();
+  }
+
+  void pushOpen3(const GPoint& move)
+  {
+    m_open3_moves.push() = move;
+  }
+
+  void popOpen3(GPoint& move)
+  {
+    move = m_open3_moves.back();
+    m_open3_moves.pop();
   }
 
 public:
   //новые ходы линий 5
-  uint line5_moves_count;
+  uint m_moves5_count;
 
   //максимальное число ячеек, которые лежат на восьми линиях 5,
   //расходящихся из общего центра (ход в центр влияет на веса этих ходов)
@@ -82,13 +93,16 @@ public:
 
   //новые линии 3, каждая линия 3 представлена парой свободных ходов,
   //каждый такой ход реализует линию 4
-  GStack<RELATED_MOVES_COUNT> m_line4_moves;
+  GStack<RELATED_MOVES_COUNT> m_moves4;
+
+  //новые потенциальные открытые тройки
+  GStack<RELATED_MOVES_COUNT> m_open3_moves;
 };
 
 class GMoveData : public GStateBackup
 {
 public:
-  GMoveData() : player(G_EMPTY)
+  GMoveData(GPlayer _player = G_EMPTY) : player(_player)
   {}
 
   bool empty() const
@@ -110,21 +124,40 @@ public:
   GMoveWgt wgt;
 };
 
-using GPointStack = TGridStack<bool, TCleaner<bool>, TCleaner<bool>>;
+template<int W, int H>
+using GGrid = TGridStack<GMoveData, W, H>;
 
-//Каждый ход может реализовать одну линию 4 или вилку из нескольких линий 4
-//Для таких ходов хранится список дополняющих ходов до линии 5
-using GLine4MoveData = GPointStack;
-using GLine4MoveDataPtr = std::unique_ptr<GLine4MoveData>;
+template<>
+const bool default_empty_value<bool> = false;
 
-using GGrid = TGridStack<GMoveData, TCleanerByMethods<GMoveData>>;
+using GPointStack = TGridStack<bool>;
 
-class Gomoku : public IGomoku, protected GGrid
+class GDangerMoveData
 {
 public:
-  Gomoku(int _width = DEF_GRID_WIDTH, int _height = DEF_GRID_HEIGHT);
+  GDangerMoveData(bool open3 = false) : m_open3(open3)
+  {}
 
-  const GGrid& grid() const;
+  bool empty() const
+  {
+    return m_moves5.empty() && !m_open3;
+  }
+
+  void clear()
+  {
+    m_moves5.clear();
+    m_open3 = false;
+  }
+
+public:
+  GStack<8> m_moves5; //Для шаха или вилки шахов храним множество финальных дополнений
+  bool      m_open3;  //Для открытой тройки храним признак открытой тройки
+};
+
+class Gomoku : public IGomoku, protected GGrid<GRID_WIDTH, GRID_HEIGHT>
+{
+public:
+  Gomoku();
 
   void start() override;
   bool isValidNextMove(int x, int y) const override;
@@ -145,79 +178,89 @@ public:
 protected:
 
   friend class GMoveMaker;
-
-  const GPointStack& getLine5Moves(GPlayer player) const;
+  friend class GCounterShahChainMaker;
 
   void undoImpl();
 
   GPoint hintImpl(GPlayer player);
   GPoint hintSecondMove() const;
-  bool hintLine5(GPlayer player, GPoint& move) const;
-  bool hintLine5Block(GPlayer player, GPoint& move) const;
+  bool hintMove5(GPlayer player, GPoint& move) const;
+  bool hintBlock5(GPlayer player, GPoint& move) const;
 
   //Поиск выигрышной цепочки шахов
-  bool hintShortestVictoryMove4Chain(
-      GPlayer player,
-      GPoint& move,
-      uint max_move4_chain_depth,
-      GStack<DEF_CELL_COUNT>* defense_variants = 0);
-  bool hintVictoryMove4Chain(
-      GPlayer player,
-      GPoint& move,
-      uint move4_chain_depth,
-      GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool findVictoryMove4Chain(
+    GPlayer player,
+    uint depth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
 
-  //Лучшая защита от выигрышной цепочки шахов противника
-  GPoint hintBestDefense(
-      GPlayer player,
-      const GPoint& enemy_move4,
-      const GStack<DEF_CELL_COUNT>& variants,
-      int depth,
-      uint enemy_move4_chain_depth);
+  bool completeVictoryMove4Chain(
+    GPlayer player,
+    uint depth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
 
-  //Ход с лучшим весом при отсутствии выигрышных цепочек шахов игрока и угроз противника
-  GPoint hintMaxWgt(GPlayer player, int depth);
+  bool findVictoryMove4Chain(
+    GPlayer player,
+    const GBaseStack& variants,
+    uint depth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
 
-  int calcMaxWgt(GPlayer player, int depth);
-  int calcWgt(GPlayer player, const GPoint& move, int depth);
+  //Поиск выигрышной цепочки шахов с заданным начальным шахом
+  bool findVictoryMove4Chain(
+    GPlayer player,
+    const GPoint& move4,
+    uint depth,
+    GBaseStack* defense_variants = 0);
 
-  //Вес лучшей цепочки шахов
-  int calcMaxMove4ChainWgt(GPlayer player, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
-  //Вес лучшей цепочки шахов с заданным начальным шахом
-  int calcMove4ChainWgt(GPlayer player, const GPoint& move4, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
   //Вес блокировки шаха противника в цепочке шахов противника
-  int calcBlock5Wgt(GPlayer player, const GPoint& block, uint depth, GStack<DEF_CELL_COUNT>* defense_variants = 0);
+  bool isDefeatBlock5(
+    GPlayer player,
+    const GPoint& block,
+    uint depth,
+    GBaseStack* defense_variants = 0);
 
-  //Вес лучшей блокировки выигрышной цепочки шахов
-  int calcMaxDefenseWgt(
-      GPlayer player,
-      const GStack<DEF_CELL_COUNT>& variants,
-      int depth,
-      uint enemy_move4_chain_depth);
-  //Вес контршаха для защиты от выигрышной цепочки шахов противника
-  int calcDefenseMove4Wgt(GPlayer player, const GPoint& move4, int depth, uint enemy_move4_chain_depth);
-  //Вес хода для защиты от выигрышной цепочки шахов противника
-  int calcDefenseWgt(GPlayer player, const GPoint& move, int depth, uint enemy_move4_chain_depth);
+  bool findLongOrVictoryMove4Chain(GPlayer player, uint depth);
+  bool completeLongOrVictoryMove4Chain(GPlayer player, uint depth);
+  bool findLongOrVictoryMove4Chain(GPlayer player, const GBaseStack &variants, uint depth);
+  bool findLongOrVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth);
+  bool isLongOrDefeatBlock5(GPlayer player, const GPoint &block, uint depth);
+
+  bool findVictoryAttack(GPlayer player, uint depth, GPoint* victory_move = 0);
+  bool findVictoryAttack(GPlayer player, const GBaseStack& variants, uint depth, GPoint* victory_move = 0);
+  bool isVictoryMove(GPlayer player, const GPoint& move, uint depth);
+  bool isVictoryMove4(GPlayer player, const GPoint& move, uint depth);
+  bool isNearVictoryOpen3(GPlayer player, const GPoint &move, uint depth);
+  bool isDefeatMove(GPlayer player, const GPoint& move, uint depth);
+
+  bool findLongAttack(GPlayer player, uint depth, GPoint* move = 0);
+  bool findLongAttack(GPlayer player, const GBaseStack& attack_moves, uint depth, GPoint* move = 0);
+  bool findLongAttack(GPlayer player, const GPoint& move, uint depth);
+  bool isLongDefense(GPlayer player, const GPoint& move, uint depth);
+
+  void getChainMoves(GStack<32>& chain_moves);
+  void getChainMoves(GPlayer player, GPoint center, const GVector& v1, GStack<32>& chain_moves);
+  bool isSpace5(GPlayer player, const GPoint& center, const GVector& v1);
+  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
 
   //На четной глубине ход игрока,
   //за которого в данный момент играет ии
-  bool isAiDepth(int depth) const;
+  bool isAiDepth(uint depth) const;
 
-  void addLine5Move(GPlayer player, const GPoint& line5Move);
-  void removeLine5Move(GPlayer player);
-  bool isLine5Move(GPlayer player, const GPoint& move) const;
-  void addLine4Moves(GPlayer player, const GPoint& move1, const GPoint& move2, GMoveData& source);
-  void undoLine4Moves(GMoveData& source);
-  bool isLine4Move(GPlayer player, const GPoint& move) const;
+  void addMove5(GPlayer player, const GPoint& move5);
+  void removeMove5(GPlayer player);
+  bool isMove5(GPlayer player, const GPoint& move) const;
+  void addMoves4(GPlayer player, const GPoint& move1, const GPoint& move2, GMoveData& source);
+  void undoMoves4(GMoveData& source);
+  bool isDangerMove4(GPlayer player, const GPoint& move) const;
 
   bool buildLine5();
   bool buildLine5(const GVector& v1);
   void undoLine5();
-
-  bool adjustLineStart(GPoint& start, const GVector& v1, int lineLen) const;
 
   void initMovesWgt();
   void initWgt(const GLine& line5);
@@ -226,6 +269,18 @@ protected:
 
   void updateRelatedMovesState();
   void updateRelatedMovesState(const GVector& v1);
+  void updateOpen3(const GVector& v1);
+  void updateOpen3_Xxx(const GPoint& p3, const GVector& v1);
+  void updateOpen3_X_xx(const GPoint& p5, const GVector& v1);
+  void updateOpen3_xXx(const GPoint& p2, const GVector& v1);
+  void updateOpen3_Xx_x(const GPoint& p3, const GVector& v1);
+  void addOpen3(const GPoint& move);
+  void undoOpen3(GMoveData& moveData);
+  bool isDangerOpen3(GPlayer player, const GPoint& move, GBaseStack* defense_variants = 0);
+  bool isDangerOpen3(GBaseStack* defense_variants = 0);
+  bool isMate(GPlayer player, const GPoint& move);
+  bool isMate();
+
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
   void restoreRelatedMovesState(const GVector& v1, uint& related_moves_iter);
@@ -235,53 +290,41 @@ protected:
   int getBlockingMoveWgt(int line_len);
   int getLineWgt(int line_len);
 
-  template<typename PointHandler>
-  bool findMove(GPoint& move, PointHandler pointHandler)
+  uint maxAttackDepth()
   {
-    move.x = move.y = 0;
-    do
-    {
-      if (pointHandler(move))
-        return true;
-    }
-    while(next(move));
-
-    return false;
+    return getAiLevel() * 2;
   }
 
-  template<typename WgtHandler>
-  bool findVictoryMove(GPlayer player, GPoint& move, int depth, WgtHandler wgtHandler)
+  int getStoredWgt(GPlayer player, const GPoint& move)
   {
-    int wgt;
-    auto moveHandler = [&](const GPoint& move)
-    {
-      if (!isEmptyCell(move))
-        return false;
-
-      wgt = calcWgt(player, move, depth);
-
-      wgtHandler(move, wgt);
-
-      return wgt == WGT_VICTORY;
-    };
-
-    return findMove(move, moveHandler);
+    assert(get(move).player != !player);
+    return get(move).wgt[player];
   }
 
-  bool next(GPoint& point) const;
+  void sortVariantsByWgt(GPlayer player);
+
+  bool cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& variant2);
+
+  static GPoint randomMove(const GBaseStack& moves);
 
 protected:
   static const GVector vecs1[];  //{1, 0}, {1, 1}, {0, 1}, {-1, 1}
-
-  static const int WGT_VICTORY = std::numeric_limits<int>::max();
-  static const int WGT_DEFEAT  = std::numeric_limits<int>::min();
 
   uint m_ai_level;
 
   GLine m_line5;
 
-  GPointStack m_line5_moves[2];
-  TGridStack<GLine4MoveDataPtr, TPtrCleaner<GLine4MoveDataPtr>> m_line4_moves[2];
+  GPointStack m_moves5[2];
+
+  TGridStack<GDangerMoveData> m_danger_moves[2];
+
+  GPoint m_variants_index[gridSize()];
+
+protected:
+  decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)
+  {
+    return m_danger_moves[player];
+  }
 };
 
 //raii move maker
@@ -315,6 +358,46 @@ public:
 
 protected:
   Gomoku* m_g;
+};
+
+//Класс в конструкторе реализует ходы до завершения цепочки контршахов,
+//а в деструкторе откатывает их
+class GCounterShahChainMaker
+{
+public:
+  GCounterShahChainMaker(Gomoku* g) : m_g(g), m_counter(0)
+  {
+    assert(g);
+    for (; ; )
+    {
+      const auto& last_move_data = m_g->get(m_g->lastCell());
+      if (last_move_data.m_moves5_count != 1)
+        break;
+      const GPoint& block = m_g->m_moves5[last_move_data.player].lastCell();
+      m_g->push(block).player = !last_move_data.player;
+      m_g->updateRelatedMovesState();
+      ++m_counter;
+    }
+  }
+
+  ~GCounterShahChainMaker()
+  {
+    assert(m_g);
+    while (m_counter > 0)
+      undo();
+  }
+
+  void undo()
+  {
+    assert(m_counter > 0);
+    m_g->restoreRelatedMovesState();
+    m_g->pop();
+    --m_counter;
+  }
+
+protected:
+  Gomoku* m_g;
+  uint m_counter;
 };
 
 } //namespace nsg
