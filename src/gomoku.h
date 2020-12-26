@@ -6,7 +6,7 @@
 #include "gline.h"
 #include "gstack.h"
 #include "gplayer.h"
-#include "gint.h"
+#include "grandom.h"
 #include <iostream>
 
 namespace nsg
@@ -174,16 +174,52 @@ public:
   const GLine* getLine5() const override;
   uint getAiLevel() const override;
   void setAiLevel(uint level) override;
+  uint getMoveCount(GPlayer player);
 
 protected:
 
   friend class GMoveMaker;
   friend class GCounterShahChainMaker;
 
+  class GVariantsIndex
+  {
+  public:
+    GVariantsIndex()
+    {
+      GPoint* variant = &m_variants_index[0];
+      GPoint p{0, 0};
+      do
+      {
+        *variant++ = p;
+      }
+      while (next(p));
+    }
+
+    GPoint& operator[](uint i)
+    {
+      return m_variants_index[i];
+    }
+
+    const GPoint& operator[](uint i) const
+    {
+      return m_variants_index[i];
+    }
+
+  protected:
+    GPoint m_variants_index[gridSize()];
+  };
+
+  void copyFrom(const Gomoku& g);
+
   void undoImpl();
+  void doInMind(const GPoint& move, GPlayer player);
+  void undoInMind();
 
   GPoint hintImpl(GPlayer player);
   GPoint hintSecondMove() const;
+  GPoint hintThirdMove(GPlayer player);
+  GPoint hintForthMove(GPlayer player);
+
   bool hintMove5(GPlayer player, GPoint& move) const;
   bool hintBlock5(GPlayer player, GPoint& move) const;
 
@@ -280,6 +316,7 @@ protected:
   bool isDangerOpen3(GBaseStack* defense_variants = 0);
   bool isMate(GPlayer player, const GPoint& move);
   bool isMate();
+  bool isShah(GPlayer player);
 
   void backupRelatedMovesState(const GVector& v1, uint& related_moves_iter);
   void restoreRelatedMovesState();
@@ -301,11 +338,211 @@ protected:
     return get(move).wgt[player];
   }
 
-  void sortVariantsByWgt(GPlayer player);
+  int maxStoredWgt();
+
+  void sortVariantsByWgt(GPlayer player, GVariantsIndex& variants_index);
+  void sortMaxN(GPlayer player, GVariantsIndex& variants_index, uint n);
 
   bool cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& variant2);
 
   static GPoint randomMove(const GBaseStack& moves);
+
+protected:
+  static const int WGT_VICTORY     = 1000000;
+  static const int WGT_LONG_ATTACK = 999000;
+
+  static bool isSpecialWgt(int wgt)
+  {
+    return wgt > 900000 || wgt < -900000;
+  }
+
+  template <uint Depth, uint MaxWgtChildrenCount>
+  class GVariantsIterator
+  {
+  public:
+
+    GVariantsIterator(Gomoku* g) : m_g(g), m_cur_depth(0), m_root_depth(0)
+    {
+      firstChild();
+      assert(Depth > 0);
+    }
+
+    ~GVariantsIterator()
+    {
+      for (; m_cur_depth > 0; --m_cur_depth)
+        undo();
+    }
+
+    uint curDepth() const
+    {
+      return m_cur_depth;
+    }
+
+    uint curIndex(uint depth) const
+    {
+      assert(depth >= 1 && depth <= Depth);
+      return m_variants[depth - 1].m_cur_index;
+    }
+
+    const GPoint& getMove(uint depth, uint index)
+    {
+      assert(depth > 0 && depth <= Depth);
+      assert(index < MaxWgtChildrenCount);
+      return m_variants[depth - 1][index];
+    }
+
+    int maxWgt(uint depth) const
+    {
+      assert(depth >= 1 && depth <= Depth);
+      return m_variants[depth - 1].m_maxwgt;
+    }
+
+    void setRootDepth(uint depth)
+    {
+      assert(depth < Depth);
+      m_root_depth = depth;
+    }
+
+    bool next()
+    {
+      if (m_cur_depth == Depth)
+        return setWgt(curStoredWgt() - m_g->maxStoredWgt());
+      else if (!m_g->isEmptyCell(getMove(m_cur_depth + 1, 0))) //все клетки заняты
+        return setWgt(curStoredWgt());
+      return firstChild();
+    }
+
+    bool nextBrother()
+    {
+      if (++curIndex() == MaxWgtChildrenCount || !m_g->isEmptyCell(curMove()))
+        return nextParent(curMaxWgt());
+      undo();
+      doMove();
+      return true;
+    }
+
+    bool nextParent(uint max_child_wgt)
+    {
+      undo();
+      if (--m_cur_depth <= m_root_depth)
+        return false;
+      if (max_child_wgt == -WGT_VICTORY)
+        return nextParent(WGT_VICTORY);
+
+      int wgt;
+      if (isSpecialWgt(max_child_wgt))
+        wgt = -max_child_wgt;
+      else
+        wgt = curStoredWgt() - max_child_wgt;
+
+      return setWgt(wgt);
+    }
+
+    bool setWgt(int wgt)
+    {
+      updateMaxWgt(wgt);
+      if (wgt == WGT_VICTORY)
+        return nextParent(WGT_VICTORY);
+      return nextBrother();
+    }
+
+    void updateMaxWgt(int wgt)
+    {
+      if (wgt > curMaxWgt())
+      {
+        curMaxWgt() = wgt;
+        if (curDepth() == 1)
+          m_maxwgt_moves.clear();
+      }
+      if (wgt == curMaxWgt() && curDepth() == 1)
+        m_maxwgt_moves.push() = curMove();
+    }
+
+    int curStoredWgt()
+    {
+      return m_g->getStoredWgt(m_g->lastMovePlayer(), curMove());
+    }
+
+    GPoint best()
+    {
+      assert(!m_maxwgt_moves.empty());
+      return m_maxwgt_moves[random(0, m_maxwgt_moves.size())];
+    }
+
+  protected:
+    class GVariants : public GVariantsIndex
+    {
+    public:
+      GVariants()
+      {}
+
+      int m_maxwgt = -WGT_VICTORY;
+      uint m_cur_index = 0;
+    };
+
+    GVariants& curVariants()
+    {
+      assert(curDepth() > 0 && curDepth() <= Depth);
+      return m_variants[curDepth() - 1];
+    }
+
+    uint& curIndex()
+    {
+      return curVariants().m_cur_index;
+    }
+
+    const GPoint& curMove() const
+    {
+      assert(curDepth() > 0 && curDepth() <= Depth);
+      const GVariants& variants = m_variants[curDepth() - 1];
+      return variants[variants.m_cur_index];
+    }
+
+    int& curMaxWgt()
+    {
+      return curVariants().m_maxwgt;
+    }
+
+    void doMove()
+    {
+      m_g->doInMind(curMove(), !m_g->lastMovePlayer());
+    }
+
+    void undo()
+    {
+      m_g->undoInMind();
+    }
+
+    bool firstChild()
+    {
+      assert(m_cur_depth < Depth);
+      assert(m_g->isEmptyCell(getMove(m_cur_depth + 1, 0)));
+
+      ++m_cur_depth;
+      sortCurVariants();
+      curIndex() = 0;
+      curMaxWgt() = -WGT_VICTORY;
+      doMove();
+      return true;
+    }
+
+    void sortCurVariants()
+    {
+      //Ищем требуемое число элементов с максимальным весом
+      m_g->sortMaxN(!m_g->lastMovePlayer(), curVariants(), MaxWgtChildrenCount);
+    }
+
+  protected:
+    Gomoku* m_g;
+
+    uint m_cur_depth;
+
+    uint m_root_depth;
+
+    GVariants m_variants[Depth];
+
+    GStack<MaxWgtChildrenCount> m_maxwgt_moves;
+  };
 
 protected:
   static const GVector vecs1[];  //{1, 0}, {1, 1}, {0, 1}, {-1, 1}
@@ -318,7 +555,13 @@ protected:
 
   TGridStack<GDangerMoveData> m_danger_moves[2];
 
-  GPoint m_variants_index[gridSize()];
+  GVariantsIndex m_variants_index[2];
+
+  //При неудачном поиске выигрышной атаки определяем,
+  //возможна ли длинная атака
+  //false - длинной атаки нет, можно не искать
+  //true - длинная атака возможна
+  bool m_long_attack_possible;
 
 protected:
   decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)
@@ -342,18 +585,14 @@ public:
   ~GMoveMaker()
   {
     if (m_g)
-    {
-      m_g->restoreRelatedMovesState();
-      m_g->pop();
-    }
+      m_g->undoInMind();
   }
 
   void doMove(Gomoku* g, GPlayer player, const GPoint& move)
   {
     assert(!m_g);
     m_g = g;
-    g->push(move).player = player;
-    g->updateRelatedMovesState();
+    g->doInMind(move, player);
   }
 
 protected:
@@ -374,8 +613,7 @@ public:
       if (last_move_data.m_moves5_count != 1)
         break;
       const GPoint& block = m_g->m_moves5[last_move_data.player].lastCell();
-      m_g->push(block).player = !last_move_data.player;
-      m_g->updateRelatedMovesState();
+      m_g->doInMind(block, !last_move_data.player);
       ++m_counter;
     }
   }
@@ -390,8 +628,7 @@ public:
   void undo()
   {
     assert(m_counter > 0);
-    m_g->restoreRelatedMovesState();
-    m_g->pop();
+    m_g->undoInMind();
     --m_counter;
   }
 
