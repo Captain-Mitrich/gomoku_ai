@@ -181,33 +181,21 @@ protected:
   friend class GMoveMaker;
   friend class GCounterShahChainMaker;
 
-  class GVariantsIndex
+  class GVariantsIndex : public GStack<gridSize()>
   {
   public:
     GVariantsIndex()
     {
-      GPoint* variant = &m_variants_index[0];
       GPoint p{0, 0};
       do
       {
-        *variant++ = p;
+        push() = p;
       }
       while (next(p));
     }
-
-    GPoint& operator[](uint i)
-    {
-      return m_variants_index[i];
-    }
-
-    const GPoint& operator[](uint i) const
-    {
-      return m_variants_index[i];
-    }
-
-  protected:
-    GPoint m_variants_index[gridSize()];
   };
+
+  bool randomFromTwo(GVariantsIndex& var_index, GPoint*& cur, const GPoint* end);
 
   void copyFrom(const Gomoku& g);
 
