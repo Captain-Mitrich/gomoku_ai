@@ -204,8 +204,9 @@ GPoint Gomoku::hintImpl(GPlayer player)
   //Ищем вариант с максимальным весом,
   //в ответ на который противник не сможет провести выигрышную или длинную атаку,
   //а с другой стороны игрок может продолжить его своей выигрышной атакой
-  int i = 0;
-  for (const GPoint* variant = &p_variants_index[0]; i < 50 && isEmptyCell(*variant); ++i, ++variant)
+  GPoint* variant = p_variants_index.begin();
+  const GPoint* end = p_variants_index.begin() + 60;
+  for (; randomFromTwo(p_variants_index, variant, end); ++variant)
   {
     //Шахи и полушахи проверены выше - они не результативны с точки зрения атаки
     if (isDangerMove4(player, *variant) || isDangerOpen3(player, *variant))
@@ -215,12 +216,12 @@ GPoint Gomoku::hintImpl(GPlayer player)
       continue;
     if (findLongAttack(player, maxAttackDepth()))
     {
-      assert(i < 40);
+      assert(variant - p_variants_index.begin() < 50);
       return *variant;
     }
     if (!isValidCell(defense_variant))
     {
-      assert(i < 40);
+      assert(variant - p_variants_index.begin() < 50);
       defense_variant = *variant;
     }
   }
@@ -309,8 +310,7 @@ GPoint Gomoku::hintImpl(GPlayer player)
   //Ищем вариант, который позволяет максимально затянуть выигрышную атаку противника
   uint max_min_defeat_depth = 0;
   defense_variant = p_variants_index[0];
-  i = 0;
-  for (const GPoint* variant = &p_variants_index[0]; i < 50 && isEmptyCell(*variant); ++i, ++variant)
+  for (variant = p_variants_index.begin(); variant != end && isEmptyCell(*variant); ++variant)
   {
     bool shah = isDangerMove4(player, *variant);
     GMoveMaker gmm(this, player, *variant);
@@ -327,7 +327,7 @@ GPoint Gomoku::hintImpl(GPlayer player)
       return *variant;
     if (depth > max_min_defeat_depth)
     {
-      assert(i < 40);
+      assert(variant - p_variants_index.begin() < 50);
       max_min_defeat_depth = depth;
       defense_variant = *variant;
     }
@@ -955,6 +955,20 @@ bool Gomoku::isGameOver() const
 const GLine* Gomoku::getLine5() const
 {
   return isValidCell(m_line5.start) ? &m_line5 : nullptr;
+}
+
+bool Gomoku::randomFromTwo(GVariantsIndex& var_index, GPoint*& cur, const GPoint* end)
+{
+  assert(cur >= var_index.begin() && end >= cur);
+  if (cur == end || !isEmptyCell(*cur))
+    return false;
+  if (cur + 1 == end || !isEmptyCell(cur[1]))
+    return true;
+  //Перемешиваем текущий четный и следующий нечетный вариант
+  bool odd = (cur - var_index.begin()) & 1;
+  if (!odd && random(0, 2))
+    std::swap(*cur, cur[1]);
+  return true;
 }
 
 void Gomoku::copyFrom(const Gomoku &g)

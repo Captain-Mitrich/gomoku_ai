@@ -94,7 +94,17 @@ public:
     return m_data;
   }
 
+  T* begin()
+  {
+    return m_data;
+  }
+
   const T* end() const
+  {
+    return m_data + m_size;
+  }
+
+  T* end()
   {
     return m_data + m_size;
   }
