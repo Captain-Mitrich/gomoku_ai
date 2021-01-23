@@ -195,7 +195,7 @@ protected:
     }
   };
 
-  bool randomFromTwo(GVariantsIndex& var_index, GPoint*& cur, const GPoint* end);
+  bool randomFromTwo(GPlayer player, GVariantsIndex& var_index, GPoint*& cur, const GPoint* end);
 
   void copyFrom(const Gomoku& g);
 
@@ -210,6 +210,11 @@ protected:
 
   bool hintMove5(GPlayer player, GPoint& move) const;
   bool hintBlock5(GPlayer player, GPoint& move) const;
+
+  int calcWgt(GPlayer player, const GPoint& pvariant, bool enemy_attack);
+  int calcWgt(const GBaseStack& defenseVariants, bool enemy_attack);
+
+  GPoint lastHopeMove(GPlayer player);
 
   //Поиск выигрышной цепочки шахов
   bool findVictoryMove4Chain(
@@ -256,17 +261,24 @@ protected:
   bool isVictoryMove(GPlayer player, const GPoint& move, uint depth);
   bool isVictoryMove4(GPlayer player, const GPoint& move, uint depth);
   bool isNearVictoryOpen3(GPlayer player, const GPoint &move, uint depth);
-  bool isDefeatMove(GPlayer player, const GPoint& move, uint depth);
+  bool isDefeatMove(GPlayer player, const GPoint& move, uint depth, uint attack_moves_count = 1);
 
   bool findLongAttack(GPlayer player, uint depth, GPoint* move = 0);
   bool findLongAttack(GPlayer player, const GBaseStack& attack_moves, uint depth, GPoint* move = 0);
-  bool findLongAttack(GPlayer player, const GPoint& move, uint depth);
-  bool isLongDefense(GPlayer player, const GPoint& move, uint depth);
+  bool findLongAttack(GPlayer player, const GPoint& move, uint depth, bool forced = false);
+  bool isLongDefense(GPlayer player, const GPoint& move, uint depth, uint attack_moves_count = 1);
 
-  void getChainMoves(GStack<32>& chain_moves);
-  void getChainMoves(GPlayer player, GPoint center, const GVector& v1, GStack<32>& chain_moves);
-  bool isSpace5(GPlayer player, const GPoint& center, const GVector& v1);
-  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space);
+  void getChainMoves(GStack<32>& chain_moves, uint attack_moves_count = 1);
+  void getChainMoves(const GPoint& center, GStack<32>& chain_moves);
+  void getChainMoves(
+    GPlayer player,
+    GPoint center,
+    const GVector& v1,
+    GStack<32>& chain_moves,
+    const GPoint* bp,
+    const GPoint* ep);
+  bool isSpace(GPlayer player, const GPoint& center, const GVector& v1, int required_space);
+  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space, int required_space);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
@@ -293,6 +305,12 @@ protected:
 
   void updateRelatedMovesState();
   void updateRelatedMovesState(const GVector& v1);
+  void updateWgt(const GPoint& p, GPlayer player, const GVector& v1);
+
+  //Вычисление веса хода заданного игрока в заданную пустую клетку
+  //v1 - направление от последнего хода к заданному
+  int  calcWgt(const GPoint& move, GPlayer player, const GVector& v1);
+
   void updateOpen3(const GVector& v1);
   void updateOpen3_Xxx(const GPoint& p3, const GVector& v1);
   void updateOpen3_X_xx(const GPoint& p5, const GVector& v1);
@@ -311,9 +329,9 @@ protected:
   void restoreRelatedMovesState(const GVector& v1, uint& related_moves_iter);
 
   int getFirstLineMoveWgt();
-  int getFurtherMoveWgt(int line_len);
-  int getBlockingMoveWgt(int line_len);
-  int getLineWgt(int line_len);
+  int getFurtherMoveWgt(uint line_len);
+  int getBlockingMoveWgt(uint line_len);
+  int getLineWgt(uint line_len);
 
   uint maxAttackDepth()
   {
@@ -327,11 +345,20 @@ protected:
   }
 
   int maxStoredWgt();
+  int maxStoredWgt(const GBaseStack& variants);
 
-  void sortVariantsByWgt(GPlayer player, GVariantsIndex& variants_index);
-  void sortMaxN(GPlayer player, GVariantsIndex& variants_index, uint n);
+  void sortVariantsByWgt(GPlayer player, GBaseStack& stack);
+  void sortVariantsByWgt(GPlayer player, GPoint* begin, GPoint* end);
+  void sortMaxN(GPlayer player, GBaseStack& stack, uint n);
+  void sortMaxN(GPlayer player, GPoint* begin, GPoint* end, uint n);
 
   bool cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& variant2);
+
+  static int updateMaxWgt(
+    int wgt,
+    int& max_wgt,
+    const GPoint* move = nullptr,
+    GBaseStack* max_wgt_moves = nullptr);
 
   static GPoint randomMove(const GBaseStack& moves);
 
@@ -517,7 +544,7 @@ protected:
     void sortCurVariants()
     {
       //Ищем требуемое число элементов с максимальным весом
-      m_g->sortMaxN(!m_g->lastMovePlayer(), curVariants(), MaxWgtChildrenCount);
+      m_g->sortMaxN(!m_g->lastMovePlayer(), curVariants().begin(), curVariants().end(), MaxWgtChildrenCount);
     }
 
   protected:
@@ -611,6 +638,11 @@ public:
     assert(m_g);
     while (m_counter > 0)
       undo();
+  }
+
+  bool empty()
+  {
+    return m_counter == 0;
   }
 
   void undo()

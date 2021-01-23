@@ -48,8 +48,14 @@ public:
 
   void testFindLongAttack();
 
+  void testLastHopeMove();
+
+  void testHintImpl();
+
 protected:
   void testEmpty();
+
+  void testMove(int x, int y, GPlayer player);
 
   bool isMove4(GPlayer player, int x, int y)
   {
@@ -62,6 +68,11 @@ protected:
     const auto& danger_move_data = m_danger_moves[player][{x, y}];
     return danger_move_data.m_open3;
   }
+
+  int calcCurWgt(GPlayer player);
+  int calcLinesWgt(GPlayer player);
+  int calcLinesWgt(GPlayer player, GVector v1, GPoint bp, GPoint ep);
+  int calcLineWgt(GPlayer player, GPoint bp, GVector v1);
 };
 
 void TestGomoku::testDoMove()
@@ -121,6 +132,79 @@ void TestGomoku::testEmpty()
     assert(data.m_moves5_count == 0);
   }
   while (next(p));
+}
+
+void TestGomoku::testMove(int x, int y, GPlayer player)
+{
+  int wgt1 = calcCurWgt(player);
+
+  int move_wgt = get({x, y}).wgt[player];
+
+  doMove(x, y, player);
+
+  int wgt2 = calcCurWgt(player);
+
+  assert(wgt2 == wgt1 + move_wgt);
+}
+
+int TestGomoku::calcCurWgt(GPlayer player)
+{
+  return calcLinesWgt(player) - calcLinesWgt(!player);
+}
+
+int TestGomoku::calcLinesWgt(GPlayer player)
+{
+  return
+    calcLinesWgt(player, {1, 0}, {0, 0}, {10, 14}) +
+    calcLinesWgt(player, {0, 1}, {0, 0}, {14, 10}) +
+    calcLinesWgt(player, {1, 1}, {0, 0}, {10, 10}) +
+    calcLinesWgt(player, {1, -1}, {0, 4}, {10, 14});
+}
+
+int TestGomoku::calcLinesWgt(GPlayer player, GVector v1, GPoint bp, GPoint ep)
+{
+  GPoint blp = bp; //начало линии
+  int wgt = 0;
+  for (; ; )
+  {
+    wgt += calcLineWgt(player, blp, v1);
+
+    if (blp.x == ep.x)
+    {
+      if (blp.y == ep.y)
+        break;
+      blp.x = 0;
+      ++blp.y;
+    }
+    else
+      ++blp.x;
+  }
+  return wgt;
+}
+
+int TestGomoku::calcLineWgt(GPlayer player, GPoint bp, GVector v1)
+{
+  uint player_moves_count = 0;
+
+  GPoint ep = bp + v1 * 4;
+
+//  GPlayer first_player = get(bp).player;
+//  GPlayer last_player = get(ep).player;
+//  GPlayer prev_player = isValidCell(bp - v1) ? get(bp - v1).player : G_EMPTY;
+//  GPlayer next_player = isValidCell(ep + v1) ? get(ep + v1).player : G_EMPTY;
+
+  for (; ; bp += v1)
+  {
+    GPlayer bp_player = get(bp).player;
+    if (bp_player == !player)
+      return 0;
+    if (bp_player == player)
+      ++player_moves_count;
+    if (bp == ep)
+      break;
+  }
+
+  return (player_moves_count > 0) ? getLineWgt(player_moves_count) : 0;
 }
 
 void TestGomoku::testIsGameOver()
@@ -642,6 +726,68 @@ void TestGomoku::testFindLongAttack()
   assert(findLongAttack(G_WHITE, {7, 3}, 5));
 }
 
+void TestGomoku::testLastHopeMove()
+{
+  setAiLevel(4);
+
+  testMove(7, 7, G_BLACK); //
+  testMove(6, 6, G_WHITE);
+  testMove(7, 8, G_BLACK); //
+  testMove(7, 6, G_WHITE);
+  testMove(8, 6, G_BLACK); //
+  testMove(6, 8, G_WHITE);
+  testMove(8, 7, G_BLACK); //
+  testMove(9, 7, G_WHITE);
+  testMove(8, 9, G_BLACK); //
+  testMove(8, 10, G_WHITE);
+  testMove(6, 9, G_BLACK); //
+  testMove(9, 6, G_WHITE);
+  testMove(7, 9, G_BLACK); //
+  testMove(9, 9, G_WHITE);
+  testMove(9, 10, G_BLACK); //
+
+  GPoint lhm = lastHopeMove(G_WHITE);
+  assert(lhm == (GPoint{9, 8}));
+}
+
+void TestGomoku::testHintImpl()
+{
+  setAiLevel(4);
+
+  doMove(7, 7); //
+  doMove(6, 7);
+  doMove(6, 6); //
+  doMove(5, 5);
+  doMove(7, 6); //
+  doMove(7, 8);
+  doMove(5, 6); //
+  doMove(4, 6);
+  doMove(6, 5); //
+  doMove(6, 4);
+  doMove(3, 7); //
+  doMove(7, 4);
+  doMove(8, 4); //
+  doMove(9, 6);
+  doMove(8, 7); //
+  doMove(9, 8);
+  doMove(7, 5); //
+  doMove(5, 7);
+
+  {
+    GMoveMaker gmm(this, G_BLACK, {9, 5});
+    assert(findVictoryMove4Chain(G_BLACK, {8, 5}, 1));
+  }
+
+  //Ход черных
+  //Белые следующим ходом могут реализовать вилку 3х3
+  //Черные же ходом (9, 5) могут сыграть на опережение и
+  //создать угрозу вилки 4х3
+  //Но это плохой ход, потому что белые блокируют эту угрозу,
+  //одновременно начиная свою атаку полушахом
+  //С учетом угрозы вилки 3х3 (см. выше) эта атака белых неблокируема
+  assert(hintImpl(G_BLACK) != (GPoint{9, 5}));
+}
+
 using TestFunc = void();
 void gtest(const char* name, TestFunc f, uint count = 1)
 {
@@ -677,4 +823,6 @@ int main()
   gtest("testHintMove5", &TestGomoku::testHintMove5);
   gtest("testHintVictoryMove4Chain", &TestGomoku::testHintVictoryMove4Chain);
   gtest("testFindLongAttack", &TestGomoku::testFindLongAttack);
+  gtest("testLastHopeMove", &TestGomoku::testLastHopeMove);
+  gtest("testHintImpl", &TestGomoku::testHintImpl);
 }
