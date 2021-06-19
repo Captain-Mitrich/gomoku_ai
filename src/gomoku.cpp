@@ -150,171 +150,76 @@ uint Gomoku::getMoveCount(GPlayer player)
 GPoint Gomoku::hintImpl(GPlayer player)
 {
   assert(!isGameOver());
-
   //Первый ход (Х)
   if (cells().empty())
     return {width() / 2, height() / 2};
-
   //Второй ход
   if (cells().size() == 1)
     return hintSecondMove();
-
   //Третий ход
   if (cells().size() == 2)
     return hintThirdMove(player);
-
-  //Четвертый ход (второй ход О)
-  if (cells().size() == 3 && getMoveCount(player) == 1)
-    return hintForthMove(player);
-
   GPoint move;
-
   //Финальный ход
   if (hintMove5(player, move))
     return move;
-
   //Блокировка финального хода противника
   if (hintBlock5(player, move))
     return move;
-
   //Выигрышная атака шахами
-  for (uint depth = 0; depth <= maxAttackDepth(); ++depth)
-  {
-    if (findVictoryMove4Chain(player, depth, nullptr, &move))
-      return move;
-    if (!m_long_attack_possible)
-      break;
-  }
-
-  //Выигрышная атака шахами и полушахами
-  for (uint depth = 0; depth <= maxAttackDepth(); ++depth)
-  {
-    if (findVictoryAttack(player, depth, &move))
-      return move;
-    if (!m_long_attack_possible)
-      break;
-  }
-
-  //Длинная атака шахами и полушахами
-  if (m_long_attack_possible && findLongAttack(player, maxAttackDepth(), &move))
+  if (findBestVictoryMove4Chain(player, maxAttackDepth(), nullptr, &move))
     return move;
-
-  //Есть ли угроза атаки противника
-  bool enemy_attack = findLongAttack(!player, maxAttackDepth());
-
-  //Рассматриваем варианты от большего веса к меньшему
-  GVariantsIndex& p_variants_index = m_variants_index[player];
-  sortVariantsByWgt(player, p_variants_index);
-
-  GStack<gridSize()> enemy_defense_variants;
-
-  GPoint defense_variant{-1, -1};
-  //Ищем вариант с максимальным весом,
-  //в ответ на который противник не сможет провести выигрышную или длинную атаку,
-  //а с другой стороны игрок может продолжить его своей выигрышной атакой
-  GPoint* variant = p_variants_index.begin();
-  const GPoint* end = p_variants_index.begin() + 60;
-  for (; randomFromTwo(player, p_variants_index, variant, end); ++variant)
+  //Выигрышная атака шахами и полушахами
+  bool long_attack_possible = false;
+  for (uint depth = 0; depth <= maxAttackDepth(); ++depth)
   {
-    //Шахи и полушахи проверены выше - они не результативны с точки зрения атаки
-    if (isDangerMove4(player, *variant))
-      continue;
-    GMoveMaker pmm(this, player, *variant);
-
-    //Пропускаем вариант, если он не защищает от угрозы противника
-    if (enemy_attack && findLongAttack(!player, maxAttackDepth()))
-      continue;
-
-    if (enemy_attack && findVictoryMove4Chain(player, maxAttackDepth(), &enemy_defense_variants))
-    {
-      //Противник угрожает своей атакой, но игрок может сыграть на опережение, угрожая атакой шахами
-      //Это рискованно, поскольку блокируя угрозу игрока, противник может развить свою атаку
-      int max_enemy_wgt = -WGT_VICTORY;
-      for (const GPoint& evariant: enemy_defense_variants)
-      {
-        GMoveMaker emm(this, !player, evariant);
-
-        GCounterShahChainMaker cm(this);
-
-        if (lastMovePlayer() == player) //ход игрока замыкает цепочку шахов
-        {
-          if (isMate()) //цепочка шахов завершилась выигрышем игрока
-            continue;
-          //Если противник может реализовать свою атаку,
-          //то считаем вариант игрока выигрышным
-          if (findLongAttack(!player, maxAttackDepth()))
-          {
-            max_enemy_wgt = WGT_VICTORY;
-            break;
-          }
-        }
-        else //пустая цепочка шахов или ход противника замыкает ее
-        {
-          if (isMate()) //цепочка шахов завершилась выигрышем противника
-          {
-            max_enemy_wgt = WGT_VICTORY;
-            break;
-          }
-          //Если угроза игрока не заблокирована,
-          //то считаем вариант противника проигрышным
-          if (findLongAttack(player, maxAttackDepth()))
-            continue;
-          //Если угроза противника не заблокирована,
-          //считаем вариант игрока выигрышным
-          if (findLongAttack(!player, maxAttackDepth()))
-          {
-            max_enemy_wgt = WGT_VICTORY;
-            break;
-          }
-        }
-        max_enemy_wgt = 0;
-      }
-      if (max_enemy_wgt == -WGT_VICTORY) //все варианты противника проигрышные
-        return *variant;
-      if (max_enemy_wgt != WGT_VICTORY && !isValidCell(defense_variant))
-        defense_variant = *variant;
-      continue;
-    }
-
-    if (findLongAttack(player, maxAttackDepth()))
-    {
-      assert(variant - p_variants_index.begin() < 50);
-      return *variant;
-    }
-    if (!isValidCell(defense_variant))
-    {
-      assert(variant - p_variants_index.begin() < 50);
-      defense_variant = *variant;
-    }
+    //На больших глубинах рассматриваем только цепные атаки
+    if (findVictoryAttack(player, depth, depth > getAiLevel(), long_attack_possible, &move))
+      return move;
+    if (!long_attack_possible)
+      break;
   }
+  GPoint best_move;
+  int best_wgt = -WGT_VICTORY;
+  if (long_attack_possible && findLongAttack(player, maxAttackDepth(), &best_move))
+    best_wgt = WGT_LONG_ATTACK;
 
-  //Возвращаем ход, позволяющий избежать длинной атаки противника
-  if (isValidCell(defense_variant))
-    return defense_variant;
+  initWgtTree();
+  GVariants& variants = m_variants_tree.getRootVariants();
+  assert(!variants.empty());
+  variants.sort();
+  if (variants[0].wgt == WGT_VICTORY)
+    return variants[0];
+//  if (best_wgt == WGT_LONG_ATTACK)
+//    return best_move;
+//  if (variants[0].wgt > -WGT_VICTORY)
+//    return variants[0];
 
-  //Ищем шах с максимальным весом такой,
-  //чтобы он блокировал существующую угрозу противника,
-  //а ответный защитный ход противника не создавал новую угрозу
-  for (const GPoint* variant = &p_variants_index[0]; isEmptyCell(*variant); ++variant)
+  uint enemy_danger_flags = 0;
+  bool enemy_long_attack_possible = true;
+  if (findVictoryAttack(!player, getAiLevel(), false, enemy_long_attack_possible))
   {
-    if (!isDangerMove4(player, *variant))
-      continue;
-
-    GMoveMaker gmm(this, player, *variant);
-
-    GCounterShahChainMaker cm(this);
-
-    if (isMate())
-    {
-      if (lastMovePlayer() == player)
-        return *variant;
-      else
-        continue;
-    }
-
-    if (!findLongAttack(!player, maxAttackDepth()))
-      return *variant;
+    enemy_danger_flags |= ATTACK_VICTORY;
+    enemy_long_attack_possible = true;
   }
+  if (enemy_long_attack_possible && findVictoryAttack(!player, maxAttackDepth(), true, enemy_long_attack_possible))
+    enemy_danger_flags |= ATTACK_CHAIN_VICTORY;
+  else if (enemy_long_attack_possible && findLongAttack(!player, maxAttackDepth()))
+    enemy_danger_flags |= ATTACK_CHAIN_LONG;
+
+  for (const GPoint& variant: variants)
+  {
+    assert(isEmptyCell(variant));
+    int wgt = processVariant0(player, variant, enemy_danger_flags, best_wgt);
+    if (wgt == WGT_VICTORY)
+      return variant;
+    if (wgt <= best_wgt)
+      continue;
+    best_wgt = wgt;
+    best_move = variant;
+  }
+  if (best_wgt > -WGT_VICTORY)
+    return best_move;
 
   return lastHopeMove(player);
 }
@@ -356,7 +261,7 @@ GPoint Gomoku::hintSecondMove() const
 GPoint Gomoku::hintThirdMove(GPlayer player)
 {
   //Случайно выбираем из ходов с максимальным хранимым весом
-  GVariantsIndex& p_variants_index = m_variants_index[player];
+  GVariantsIndex& p_variants_index = m_variants_index[0];
   sortVariantsByWgt(player, p_variants_index.begin(), p_variants_index.end());
 
   int max_wgt = get(p_variants_index[0]).wgt[player];
@@ -368,59 +273,6 @@ GPoint Gomoku::hintThirdMove(GPlayer player)
       break;
   }
   return  p_variants_index[(uint)random(0, max_wgt_count)];
-}
-
-GPoint Gomoku::hintForthMove(GPlayer player)
-{
-  //Этот алгоритм должен работать при нормальной игре,
-  //когда заданный игрок уже сделал один ход, а противник два
-  //Подбираем второй ход заданного игрока
-  assert(getMoveCount(player) == 1);
-
-  static const uint maxwgt_variants_count = 10;
-
-  //Рассматриваем дерево вариантов из 3 уровней по 10 вариантов в узле,
-  //то есть всевозможные цепочки из 3 ходов с высоким весом.
-  //1 - второй ход игрока
-  //2 - третий ход противника
-  //3 - третий ход игрока
-  GVariantsIterator<3, maxwgt_variants_count> vi(this);
-
-  vi.setRootDepth(1);
-
-  do
-  {
-    //Проходим по поддереву варианта первого уровня
-    //Проверяем, не является ли он проигрышным
-    for (bool next = vi.next(); next; )
-    {
-      if (vi.curDepth() == 3) //третий ход игрока
-      {
-        if (findVictoryAttack(!player, maxAttackDepth()))
-          next = vi.setWgt(-WGT_VICTORY);
-        if (m_long_attack_possible && findLongAttack(!player, maxAttackDepth()))
-          next = vi.setWgt(-WGT_LONG_ATTACK);
-        else
-          next = vi.nextParent(0); //вариант не проигрышный и ладно (другие не смотрим)
-      }
-      else
-        next = vi.next();
-    }
-    if (vi.maxWgt(2) >= WGT_LONG_ATTACK)
-      vi.updateMaxWgt(-vi.maxWgt(2));
-    else
-    {
-      assert(vi.maxWgt(1) <= -WGT_LONG_ATTACK || vi.maxWgt(1) == vi.curStoredWgt());
-      vi.updateMaxWgt(vi.curStoredWgt());
-      //Рассматриваем следующий вариант, только если он имеет равный вес
-      uint next_i = vi.curIndex(1) + 1;
-      if (next_i < maxwgt_variants_count && getStoredWgt(player, vi.getMove(1, next_i)) < vi.maxWgt(1))
-        break;
-    }
-  }
-  while (vi.nextBrother());
-
-  return vi.best();
 }
 
 bool Gomoku::hintMove5(GPlayer player, GPoint &point) const
@@ -441,190 +293,436 @@ bool Gomoku::hintBlock5(GPlayer player, GPoint &point) const
   return hintMove5(!player, point);
 }
 
-int Gomoku::calcWgt(GPlayer player, const GPoint& pvariant, bool enemy_attack)
+int Gomoku::processVariant0(GPlayer player, const GPoint& move, uint enemy_danger_flags, int best_wgt)
 {
-  GMoveMaker pmm(this, player, pvariant);
+  assert(best_wgt <= WGT_LONG_ATTACK);
+  GMoveMaker pmm(this, player, move);
+  GCounterShahChainMaker cm(this);
 
-  GCounterShahChainMaker pcm(this);
-  if (isMate()) //мат в результате цепочки контршахов
+  if (cells().size() == gridSize())
+    return 0;
+
+  if (isMate()) //игрок или противник ставит мат в результате цепочки контршахов
+    return (lastMovePlayer() == player) ? WGT_VICTORY : - WGT_VICTORY;
+
+  if (lastMovePlayer() == player) //пустая цепочка контршахов или игрок замыкает ее
   {
-    if (lastMovePlayer() == player) //шах игрока выигрышный
-      return WGT_VICTORY;
-    //Шах игрока проигрышный
-    return -WGT_VICTORY;
-  }
-
-  int emaxwgt = -WGT_VICTORY;
-
-  if (lastMovePlayer() == player) //пустая цепочка контршахов или ход игрока последний в цепочке
-  {
-    if (enemy_attack || lastCell() != pvariant)
+    bool enemy_long_attack_possible = true;
+    if ((enemy_danger_flags & ATTACK_VICTORY) || cm.count() > 0)
     {
-      //Если противник может провести длинную или выигрышную атаку,
-      //считаем вариант игрока проигрышным
+      if (findVictoryAttack(!player, getAiLevel(), false, enemy_long_attack_possible)) //угроза противника не нейтрализована
+        return -WGT_VICTORY;
+    }
+    if (enemy_long_attack_possible && ((enemy_danger_flags & ATTACK_CHAIN_VICTORY) || cm.count() > 0))
+    {
+      if (findVictoryAttack(!player, maxAttackDepth(), true, enemy_long_attack_possible))
+        return -WGT_VICTORY;
+    }
+    bool enemy_long_attack = false;
+    if (enemy_long_attack_possible && ((enemy_danger_flags & (ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG)) || cm.count() > 0))
+    {
       if (findLongAttack(!player, maxAttackDepth()))
-        return -WGT_VICTORY;
+      {
+        if (best_wgt >= -WGT_LONG_ATTACK)
+          return -WGT_LONG_ATTACK;
+        enemy_long_attack = true;
+      }
     }
-
-    bool player_long_attack = findLongAttack(player, maxAttackDepth());
-
-    GVariantsIndex& e_variants_index = m_variants_index[!player];
-    GPoint* ebegin = e_variants_index.begin();
-    GPoint* eend = ebegin + 10;
-    sortMaxN(!player, ebegin, eend, 10);
-
-    GPoint* evariant = ebegin;
-    for (; evariant != eend && isEmptyCell(*evariant); ++evariant)
+    GStack<gridSize()>* variants = &m_variants_index[1];
+    uint vcount = 20;
+    //Игрок может создать свою угрозу
+    uint danger_flags = 0;
+    bool long_attack_possible;
+    if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible))
     {
-      GMoveMaker emm(this, !player, *evariant);
-
-      GCounterShahChainMaker ecm(this);
-      if (isMate()) //мат в результате цепочки контршахов
-      {
-        if (lastMovePlayer() == player) //шах противника проигрышный
-          continue;
-        //Шах противника выигрышный
-        return -WGT_VICTORY;
-      }
-
-      int pmaxwgt;
-      if (lastMovePlayer() != player) //пустая цепочка контршахов или ход противника последний в цепочке
-      {
-        if (player_long_attack || lastCell() != *evariant)
-        {
-          //Если игрок может провести длинную или выигрышную атаку,
-          //считаем вариант противника проигрышным
-          if (findLongAttack(player, maxAttackDepth()))
-            continue;
-        }
-
-        //Определим максимальный вес вариантов игрока,
-        //ограничив варианты в случае угрозы противника
-        GStack<gridSize()> defense_variants;
-        if (findVictoryMove4Chain(!player, maxAttackDepth(), &defense_variants))
-          pmaxwgt = maxStoredWgt(defense_variants);
-        else
-          pmaxwgt = maxStoredWgt();
-      }
-      else //ход игрока последний в цепочке контршахов
-      {
-        GPoint variant = lastCell();
-        ecm.undo();
-        if (player_long_attack || !ecm.empty())
-        {
-          //Если контршах игрока начинает длинную или выигрышную атаку,
-          //считаем вариант противника проигрышным
-          if (findLongAttack(player, variant, maxAttackDepth()))
-            continue;
-        }
-        //Вес единственного варианта игрока
-        pmaxwgt = getStoredWgt(player, variant);
-      }
-
-      //Сворачиваем цепочку контршахов, и определяем вес исходного контршаха игрока
-      for (; !ecm.empty(); ecm.undo())
-        pmaxwgt = getStoredWgt(lastMovePlayer(), lastCell()) - pmaxwgt;
-
-      assert(lastCell() == *evariant);
-      int ewgt = getStoredWgt(!player, *evariant) - pmaxwgt;
-      if (ewgt > emaxwgt)
-        emaxwgt = ewgt;
+      danger_flags |= ATTACK_VICTORY;
+      long_attack_possible = true;
     }
-  }
-  else //ход противника последний в цепочке контршахов
-  {
-    GPoint variant = lastCell();
-    pcm.undo();
-    if (enemy_attack || !pcm.empty())
-    {
-      //Если контршах противника начинает длинную или выигрышную атаку,
-      //считаем вариант игрока проигрышным
-      if (findLongAttack(!player, variant, maxAttackDepth()))
-        return -WGT_VICTORY;
-    }
-
-    //Определим максимальный вес вариантов игрока,
-    //ограничив варианты в случае угрозы противника
-    int pmaxwgt;
+    //Если игрок создал угрозу выигрышной цепочки шахов, используем на глубине 1 защитные ходы
+    //Контршахи не используем, поскольку это предпологает погружение еще на 2 уровня
     GStack<gridSize()> defense_variants;
-    if (findVictoryMove4Chain(!player, variant, maxAttackDepth(), &defense_variants))
-      pmaxwgt = maxStoredWgt(defense_variants);
+    if (long_attack_possible && findBestVictoryMove4Chain(player, maxAttackDepth(), &defense_variants))
+    {
+      danger_flags |= ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG;
+      variants = &defense_variants;
+      vcount = defense_variants.size();
+    }
     else
-      pmaxwgt = maxStoredWgt();
-
-    emaxwgt = getStoredWgt(!player, variant) - pmaxwgt;
+    {
+      if (long_attack_possible && findVictoryAttack(player, maxAttackDepth(), true, long_attack_possible))
+        danger_flags |= ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG;
+      //Если неблокируемая угроза длинной атаки уже найдена, нас интересуют только выигрышные варианты
+      if (!danger_flags && best_wgt == WGT_LONG_ATTACK)
+        return WGT_LONG_ATTACK;
+      //Угроза длинной атаки определяется при одновременном выполнении следующих условий:
+      //1. Не найдена угроза цепной выигрышной атаки, поскольку она уже подразумевает угрозу длинной атаки
+      //2. Длинная атака возможна по результатам поиска выигрышной атаки
+      //3. Неблокируемая угроза длинной атаки игрока еще не найдена
+      if (!(danger_flags & ATTACK_CHAIN_LONG) && long_attack_possible && (best_wgt < WGT_LONG_ATTACK) && findLongAttack(player, maxAttackDepth()))
+        danger_flags |= ATTACK_CHAIN_LONG;
+    }
+    int min_wgt = enemy_long_attack ? -WGT_LONG_ATTACK : WGT_VICTORY;
+    processDepth1(*variants, vcount, danger_flags, best_wgt, min_wgt);
+    return min_wgt;
   }
-
-  for (; !pcm.empty(); pcm.undo())
-    emaxwgt = getStoredWgt(lastMovePlayer(), lastCell()) - emaxwgt;
-
-  assert(lastCell() == pvariant);
-  return getStoredWgt(player, pvariant) - emaxwgt;
+  else //противник замыкает цепочку контршахов
+  {
+    //Рекурсивно рассматриваем ход с наибольшим хранимым весом
+    GPoint max_wgt_move;
+    maxStoredWgt(player, &max_wgt_move);
+    return processVariant0(player, max_wgt_move, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, best_wgt);
+  }
 }
 
-int Gomoku::calcWgt(const GBaseStack& defense_variants, bool enemy_attack)
+void Gomoku::processDepth1(GBaseStack& variants, uint vcount, uint enemy_danger_flags, int best_wgt0, int& min_wgt0)
 {
-  GPlayer player = lastMovePlayer();
-
-  int emaxwgt = -WGT_VICTORY;
-
-  //Если противник может провести длинную или выигрышную атаку,
-  //считаем вариант игрока проигрышным
-  if (enemy_attack && findLongAttack(!player, maxAttackDepth()))
-    return -WGT_VICTORY;
-
-  for (const GPoint& evariant: defense_variants)
+  assert(best_wgt0 < WGT_VICTORY);
+  assert(min_wgt0 > best_wgt0);
+  //Если угрозы противника не позволяют ему увеличить вес,
+  //нет смысла рассматривать ходы на глубине 1
+  if (best_wgt0 >= WGT_LONG_ATTACK)
   {
-    GMoveMaker emm(this, !player, evariant);
-
-    GCounterShahChainMaker ecm(this);
-    if (isMate()) //мат в результате цепочки контршахов
+    if (!(enemy_danger_flags & (ATTACK_VICTORY|ATTACK_CHAIN_VICTORY)))
     {
-      if (lastMovePlayer() == player) //шах противника проигрышный
-        continue;
-      //Шах противника выигрышный
-      return -WGT_VICTORY;
+      min_wgt0 = WGT_LONG_ATTACK;
+      return;
     }
-
-    int pmaxwgt;
-    if (lastMovePlayer() != player) //пустая цепочка контршахов или ход противника последний в цепочке
+  }
+  else if (best_wgt0 >= 0)
+  {
+    if (!(enemy_danger_flags & (ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG)))
     {
-      //Если игрок может провести длинную или выигрышную атаку,
-      //считаем вариант противника проигрышным
-      if (findLongAttack(player, maxAttackDepth()))
-        continue;
-
-      //Определим максимальный вес вариантов игрока,
-      //ограничив варианты в случае угрозы противника
-      GStack<gridSize()> player_defense_variants;
-      if (findVictoryMove4Chain(!player, maxAttackDepth(), &player_defense_variants))
-        pmaxwgt = maxStoredWgt(player_defense_variants);
-      else
-        pmaxwgt = maxStoredWgt();
+      min_wgt0 = 0;
+      return;
     }
-    else //ход игрока последний в цепочке контршахов
-    {
-      GPoint variant = lastCell();
-      ecm.undo();
-      //Если контршах игрока начинает длинную или выигрышную атаку,
-      //считаем вариант противника проигрышным
-      if (findLongAttack(player, variant, maxAttackDepth()))
-        continue;
-      //Вес единственного варианта игрока
-      pmaxwgt = getStoredWgt(player, variant);
-    }
-
-    //Сворачиваем цепочку контршахов, и определяем вес исходного контршаха игрока
-    for (; !ecm.empty(); ecm.undo())
-      pmaxwgt = getStoredWgt(lastMovePlayer(), lastCell()) - pmaxwgt;
-
-    assert(lastCell() == evariant);
-    int ewgt = getStoredWgt(!player, evariant) - pmaxwgt;
-    if (ewgt > emaxwgt)
-      emaxwgt = ewgt;
   }
 
-  return getStoredWgt(player, lastCell()) - emaxwgt;
+  sortMaxN(curPlayer(), variants.begin(), variants.end(), vcount);
+  GPoint* variant = variants.begin();
+  GPoint* end = variant + vcount;
+  for (; variant != end && isEmptyCell(*variant); ++variant)
+  {
+    processVariant1(*variant, enemy_danger_flags, best_wgt0, min_wgt0);
+    if (min_wgt0 <= best_wgt0)
+      return;
+  }
+  assert(min_wgt0 > best_wgt0);
+}
+
+void Gomoku::processVariant1(const GPoint& move, uint enemy_danger_flags, int best_wgt0, int& min_wgt0)
+{
+  assert(min_wgt0 > best_wgt0);
+  GPlayer player = curPlayer();
+  GMoveMaker pmm(this, player, move);
+  GCounterShahChainMaker cm(this);
+
+  if (cells().size() == gridSize())
+  {
+    if (min_wgt0 > 0)
+      min_wgt0 = 0;
+    return;
+  }
+
+  if (isMate()) //игрок или противник ставит мат в результате цепочки контршахов
+  {
+    if (lastMovePlayer() == player)
+      min_wgt0 = -WGT_VICTORY;
+    return;
+  }
+
+  if (lastMovePlayer() == player) //пустая цепочка контршахов или игрок замыкает ее
+  {
+    bool enemy_long_attack_possible = true;
+    if ((enemy_danger_flags & ATTACK_VICTORY) || cm.count() > 0)
+    {
+      if (findVictoryAttack(!player, getAiLevel(), false, enemy_long_attack_possible)) //угроза противника не нейтрализована (не можем понизить вес противника)
+        return;
+    }
+    if (enemy_long_attack_possible &&
+        ((enemy_danger_flags & ATTACK_CHAIN_VICTORY) || cm.count() > 0))
+    {
+      if (findVictoryAttack(!player, maxAttackDepth(), true, enemy_long_attack_possible))  //угроза противника не нейтрализована (не можем понизить вес противника)
+        return;
+    }
+    if (min_wgt0 > WGT_LONG_ATTACK && !(enemy_danger_flags & (ATTACK_CHAIN_VICTORY|ATTACK_VICTORY)))
+      min_wgt0 = WGT_LONG_ATTACK;
+    if (enemy_long_attack_possible &&
+        ((enemy_danger_flags & (ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG)) || cm.count() > 0))
+    {
+      if (findLongAttack(!player, maxAttackDepth()))
+      {
+        if (min_wgt0 > WGT_LONG_ATTACK)
+          min_wgt0 = WGT_LONG_ATTACK;
+        return;
+      }
+    }
+    int move4_chain = -1;
+    GStack<gridSize()> defense_variants;
+    uint danger_flags = 0;
+    bool long_attack_possible;
+    if (min_wgt0 > 0)
+    {
+      if (enemy_danger_flags)
+      {
+        //Возможно, что противник не смог реализовать атаку из-за того, что игрок создал контругрозу выигрышной цепочки шахов (например полушах)
+        //В этом случае рассматриваем защитные варианты противника, и при сохранении угрозы противника считаем вариант игрока проигрышным
+        bool long_attack_possible;
+        move4_chain = (int)findBestVictoryMove4Chain(player, maxAttackDepth(), &defense_variants);
+        if (move4_chain)
+        {
+          danger_flags |= ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG;
+          if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible))
+            danger_flags |= ATTACK_VICTORY;
+          processDepth2(defense_variants, defense_variants.size(), danger_flags, best_wgt0, min_wgt0);
+          return;
+        }
+      }
+      min_wgt0 = 0;
+      if (best_wgt0 >= 0) //интересуют только более сильные ходы
+        return;
+    }
+    GStack<gridSize()>* variants = &m_variants_index[2];
+    uint vcount = 20;
+    assert(danger_flags == 0);
+    if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible))
+    {
+      danger_flags |= ATTACK_VICTORY;
+      long_attack_possible = true;
+    }
+    //Если игрок создал угрозу выигрышной цепочки шахов, используем на глубине 1 защитные ходы
+    //Контршахи не используем, поскольку это предпологает погружение еще на 2 уровня
+    if (move4_chain == -1 && long_attack_possible && findBestVictoryMove4Chain(player, maxAttackDepth(), &defense_variants))
+    {
+      danger_flags |= ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG;
+      variants = &defense_variants;
+      vcount = defense_variants.size();
+    }
+    else
+    {
+      if (long_attack_possible && findVictoryAttack(player, maxAttackDepth(), true, long_attack_possible))
+        danger_flags |= (ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG);
+      //Угроза длинной атаки определяется при одновременном выполнении следующих условий:
+      //1. Угроза длинной атаки еще не найдена (min_wgt0 > -WGT_LONG_ATTACK)
+      //2. Не найдена угроза цепной выигрышной атаки, поскольку она уже подразумевает угрозу длинной атаки
+      //3. Длинная атака возможна по результатам поиска выигрышной атаки
+      if (min_wgt0 > -WGT_LONG_ATTACK && !(danger_flags & ATTACK_CHAIN_LONG) && long_attack_possible)
+      {
+        if (findLongAttack(player, maxAttackDepth()))
+          danger_flags |= ATTACK_CHAIN_LONG;
+      }
+    }
+    processDepth2(*variants, vcount, danger_flags, best_wgt0, min_wgt0);
+  }
+  else //противник замыкает цепочку контршахов
+  {
+    GPoint max_wgt_move;
+    maxStoredWgt(player, &max_wgt_move);
+    processVariant1(max_wgt_move, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, best_wgt0, min_wgt0);
+  }
+}
+
+void Gomoku::processDepth2(GBaseStack& variants, uint vcount, uint enemy_danger_flags, int best_wgt0, int& min_wgt0)
+{
+  assert(min_wgt0 > best_wgt0);
+  //Если противник угрожает только длинной атакой, и уже найдена неблокируемая длинная атака противника,
+  //минимальный вес игрока не снижается
+  if (enemy_danger_flags == ATTACK_CHAIN_LONG && min_wgt0 >= -WGT_LONG_ATTACK)
+    return;
+  //Если противник не угрожает, и уже найден ход противника, который не дает игроку сделать угрожающий ход,
+  //минимальный вес игрока не снижается
+  if (enemy_danger_flags == 0 && min_wgt0 >= 0)
+    return;
+  GPlayer player = curPlayer();
+  sortMaxN(player, variants.begin(), variants.end(), vcount);
+  GPoint* variant = variants.begin();
+  GPoint* end = variant + vcount;
+  int max_wgt2 = -WGT_VICTORY;
+  for (; variant != end && isEmptyCell(*variant); ++variant)
+  {
+    int wgt2 = min_wgt0;
+    processVariant2(*variant, enemy_danger_flags, best_wgt0, wgt2);
+    assert(wgt2 <= min_wgt0);
+    if (wgt2 == min_wgt0) //Противник не улучшил свой результат, поскольку не ухудшил результат игрока
+      return;
+    if (wgt2 > max_wgt2)
+      max_wgt2 = wgt2;
+  }
+  assert(max_wgt2 < min_wgt0);
+  min_wgt0 = max_wgt2;
+}
+
+void Gomoku::processVariant2(const GPoint& move, uint enemy_danger_flags, int best_wgt0, int& min_wgt0)
+{
+  GPlayer player = curPlayer();
+  GMoveMaker pmm(this, player, move);
+  GCounterShahChainMaker cm(this);
+
+  if (cells().size() == gridSize())
+  {
+    if (min_wgt0 > 0)
+      min_wgt0 = 0;
+    return;
+  }
+
+  if (isMate()) //игрок или противник ставит мат в результате цепочки контршахов
+  {
+    if (lastMovePlayer() == !player)
+      min_wgt0 = -WGT_VICTORY;
+    return;
+  }
+
+  if (lastMovePlayer() == player) //пустая цепочка контршахов или игрок замыкает ее
+  {
+    bool enemy_long_attack_possible = true;
+    if ((enemy_danger_flags & ATTACK_VICTORY) || cm.count() > 0)
+    {
+      if (findVictoryAttack(!player, getAiLevel(), false, enemy_long_attack_possible))
+      {
+        min_wgt0 = -WGT_VICTORY;
+        return;
+      }
+    }
+    if (enemy_long_attack_possible &&
+        ((enemy_danger_flags & ATTACK_CHAIN_VICTORY) || cm.count() > 0))
+    {
+      if (findVictoryAttack(!player, maxAttackDepth(), true, enemy_long_attack_possible))
+      {
+        min_wgt0 = -WGT_VICTORY;
+        return;
+      }
+    }
+    if (enemy_long_attack_possible &&
+        ((enemy_danger_flags & (ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG)) || cm.count() > 0))
+    {
+      if (findLongAttack(!player, maxAttackDepth()))
+      {
+        min_wgt0 = -WGT_LONG_ATTACK;
+        return;
+      }
+    }
+    int move4_chain = -1;
+    GStack<gridSize()> defense_variants;
+    uint danger_flags = 0;
+    bool long_attack_possible;
+    if (enemy_danger_flags)
+    {
+      //Возможно, что противник не смог реализовать атаку из-за того, что игрок создал контругрозу выигрышной цепочки шахов (например полушах)
+      //В этом случае рассматриваем защитные варианты противника, и при сохранении угрозы противника считаем вариант игрока проигрышным
+      bool long_attack_possible;
+      move4_chain = (int)findBestVictoryMove4Chain(player, maxAttackDepth(), &defense_variants);
+      if (move4_chain)
+      {
+        danger_flags |= ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG;
+        if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible))
+          danger_flags |= ATTACK_VICTORY;
+        processDepth3(defense_variants, defense_variants.size(), danger_flags, best_wgt0, min_wgt0);
+        return;
+      }
+    }
+
+    if (min_wgt0 <= 0) //Все угрозы противника нейтрализованы, поэтому минимальный вес игрока нельзя снизить ниже 0
+      return;
+
+    //Если игрок создает новую угрозу или сохраняет ранее созданную, его вес не снижается
+    long_attack_possible = true;
+    if (min_wgt0 == WGT_VICTORY)
+    {
+      if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible) ||
+          findVictoryAttack(player, maxAttackDepth(), true, long_attack_possible))
+        return;
+      min_wgt0 = WGT_LONG_ATTACK;
+      if (best_wgt0 == WGT_LONG_ATTACK)
+        return;
+    }
+    if (long_attack_possible && findLongAttack(player, maxAttackDepth()))
+      return;
+    //Игрок не угрожает, поэтому его вес снижается до 0
+    min_wgt0 = 0;
+  }
+  else
+  {
+    GPoint max_wgt_move;
+    maxStoredWgt(player, &max_wgt_move);
+    processVariant2(max_wgt_move, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, best_wgt0, min_wgt0);
+  }
+}
+
+void Gomoku::processDepth3(GBaseStack& variants, uint vcount, uint enemy_danger_flags, int best_wgt0, int& min_wgt0)
+{
+  assert(min_wgt0 > best_wgt0);
+
+  if (enemy_danger_flags == ATTACK_CHAIN_LONG && min_wgt0 > WGT_LONG_ATTACK)
+    min_wgt0 = WGT_LONG_ATTACK;
+  else if (!enemy_danger_flags && min_wgt0 > 0)
+    min_wgt0 = 0;
+
+  GPlayer player = curPlayer();
+  sortMaxN(player, variants.begin(), variants.end(), vcount);
+  GPoint* variant = variants.begin();
+  GPoint* end = variant + vcount;
+  for (; variant != end && isEmptyCell(*variant); ++variant)
+  {
+    processVariant3(*variant, enemy_danger_flags, best_wgt0, min_wgt0);
+    if (min_wgt0 <= best_wgt0)
+      return;
+  }
+}
+
+void Gomoku::processVariant3(const GPoint& move, uint enemy_danger_flags, int best_wgt0, int& min_wgt0)
+{
+  GPlayer player = curPlayer();
+  GMoveMaker pmm(this, player, move);
+  GCounterShahChainMaker cm(this);
+
+  if (cells().size() == gridSize())
+  {
+    if (min_wgt0 > 0)
+      min_wgt0 = 0;
+    return;
+  }
+
+  if (isMate()) //игрок или противник ставит мат в результате цепочки контршахов
+  {
+    if (lastMovePlayer() == player)
+      min_wgt0 = -WGT_VICTORY;
+    return;
+  }
+
+  if (lastMovePlayer() == player) //пустая цепочка контршахов или игрок замыкает ее
+  {
+    bool enemy_long_attack_possible = true;
+    if ((enemy_danger_flags & ATTACK_VICTORY) || cm.count() > 0)
+    {
+      if (findVictoryAttack(!player, getAiLevel(), false, enemy_long_attack_possible)) //угроза противника не нейтрализована (не можем понизить вес противника)
+        return;
+    }
+    if (enemy_long_attack_possible &&
+        ((enemy_danger_flags & ATTACK_CHAIN_VICTORY) || cm.count() > 0))
+    {
+      if (findVictoryAttack(!player, maxAttackDepth(), true, enemy_long_attack_possible)) //угроза противника не нейтрализована (не можем понизить вес противника)
+        return;
+    }
+    if (enemy_long_attack_possible &&
+        ((enemy_danger_flags & (ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG)) || cm.count() > 0))
+    {
+      if (findLongAttack(!player, maxAttackDepth())) //угроза противника не нейтрализована (не можем понизить вес противника)
+        return;
+    }
+
+    //Если игрок создает новую угрозу или сохраняет ранее созданную, снижаем вес противника
+    bool long_attack_possible;
+    if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible) ||
+        findVictoryAttack(player, maxAttackDepth(), true, long_attack_possible))
+      min_wgt0 = -WGT_VICTORY;
+    else if (min_wgt0 > -WGT_LONG_ATTACK && long_attack_possible && findLongAttack(player, maxAttackDepth()))
+      min_wgt0 = -WGT_LONG_ATTACK;
+  }
+  else
+  {
+    GPoint max_wgt_move;
+    maxStoredWgt(player, &max_wgt_move);
+    processVariant3(max_wgt_move, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, best_wgt0, min_wgt0);
+  }
 }
 
 GPoint Gomoku::lastHopeMove(GPlayer player)
@@ -641,15 +739,15 @@ GPoint Gomoku::lastHopeMove(GPlayer player)
       return *variant;
   }
 
-  //Ищем вариант, который блокирует самый быстрый атакующий ход противника
   GPoint maxdepth_variant{-1, -1};
   GPoint maxdepth_shah{-1, -1};
   uint min_depth;
+  bool long_attack_possible;
   for (min_depth = 0; min_depth <= maxAttackDepth(); ++min_depth)
   {
-    if (findVictoryAttack(!player, min_depth, &maxdepth_variant))
+    if (findVictoryAttack(!player, min_depth, min_depth > getAiLevel(), long_attack_possible, &maxdepth_variant))
       break;
-    assert(m_long_attack_possible);
+    assert(long_attack_possible);
   }
   assert(min_depth <= maxAttackDepth() && isValidCell(maxdepth_variant));
 
@@ -672,9 +770,9 @@ GPoint Gomoku::lastHopeMove(GPlayer player)
     uint depth;
     for (depth = max_depth; depth <= maxAttackDepth(); ++depth)
     {
-      if (findVictoryAttack(!player, depth))
+      if (findVictoryAttack(!player, depth, depth > getAiLevel(), long_attack_possible))
         break;
-      if (!m_long_attack_possible)
+      if (!long_attack_possible)
         return *variant;
     }
     if (depth > maxAttackDepth())
@@ -694,7 +792,7 @@ GPoint Gomoku::lastHopeMove(GPlayer player)
       else if (!isValidCell(maxdepth_shah))
       {
         assert(max_shah_depth == min_depth && depth == min_depth);
-        if (min_depth == 0 || !findVictoryAttack(!player, min_depth - 1))
+        if (min_depth == 0 || !findVictoryAttack(!player, min_depth - 1, min_depth - 1 > getAiLevel(), long_attack_possible))
           maxdepth_shah = *variant;
       }
     }
@@ -704,37 +802,63 @@ GPoint Gomoku::lastHopeMove(GPlayer player)
   return maxdepth_variant;
 }
 
-bool Gomoku::findVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants, GPoint* victory_move)
+bool Gomoku::findBestVictoryMove4Chain(
+  GPlayer player,
+  uint maxdepth,
+  GBaseStack* defense_variants,
+  GPoint* victory_move)
 {
-  m_long_attack_possible = false;
-  return findVictoryMove4Chain(player, dangerMoves(player).cells(), depth, defense_variants, victory_move);
+  bool long_attack;
+  for (uint depth = 0; depth <= maxdepth; ++depth)
+  {
+    if (findVictoryMove4Chain(player, depth, long_attack, defense_variants, victory_move))
+      return true;
+    if (!long_attack)
+      break;
+  }
+  return false;
 }
 
-bool Gomoku::completeVictoryMove4Chain(GPlayer player, uint depth, GBaseStack* defense_variants, GPoint* victory_move)
+bool Gomoku::findVictoryMove4Chain(GPlayer player, uint depth, bool& long_attack, GBaseStack* defense_variants, GPoint* victory_move)
+{
+  return findVictoryMove4Chain(player, dangerMoves(player).cells(), depth, long_attack, defense_variants, victory_move);
+}
+
+bool Gomoku::completeVictoryMove4Chain(GPlayer player, uint depth, bool& long_attack, GBaseStack* defense_variants, GPoint* victory_move)
 {
   GStack<32> chain_moves;
   getChainMoves(chain_moves);
-  return findVictoryMove4Chain(player, chain_moves, depth, defense_variants, victory_move);
+  return findVictoryMove4Chain(player, chain_moves, depth, long_attack, defense_variants, victory_move);
 }
 
-bool Gomoku::findVictoryMove4Chain(GPlayer player, const GBaseStack &variants, uint depth, GBaseStack *defense_variants, GPoint *victory_move)
+bool Gomoku::findVictoryMove4Chain(
+  GPlayer player,
+  const GBaseStack &variants,
+  uint depth,
+  bool& long_attack,
+  GBaseStack* defense_variants,
+  GPoint *victory_move)
 {
+  long_attack = false;
   for (const GPoint* attack_move = variants.end(); attack_move != variants.begin();)
   {
     --attack_move;
-
-    if (findVictoryMove4Chain(player, *attack_move, depth, defense_variants))
+    bool long_attack_move;
+    if (findVictoryMove4Chain(player, *attack_move, depth, long_attack_move, defense_variants))
     {
       if (victory_move)
         *victory_move = *attack_move;
       return true;
     }
+    if (long_attack_move)
+      long_attack = true;
   }
   return false;
 }
 
-bool Gomoku::findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, GBaseStack* defense_variants)
+bool Gomoku::findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth, bool& long_attack, GBaseStack* defense_variants)
 {
+  long_attack = false;
   if (!isEmptyCell(move4))
     return false;
   const auto& move4_data = dangerMoves(player).get(move4);
@@ -782,13 +906,13 @@ bool Gomoku::findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint dep
   }
 
   if (depth == 0)
-    m_long_attack_possible = true;
+    long_attack = true;
   else
   {
     GMoveMaker gmm(this, player, move4);
 
     const GPoint& enemy_block = m_moves5[player].lastCell();
-    if (isDefeatBlock5(!player, enemy_block, depth, defense_variants))
+    if (isDefeatBlock5(!player, enemy_block, depth, long_attack, defense_variants))
     {
       if (defense_variants)
       {
@@ -802,7 +926,7 @@ bool Gomoku::findVictoryMove4Chain(GPlayer player, const GPoint& move4, uint dep
   return false;
 }
 
-bool Gomoku::isDefeatBlock5(GPlayer player, const GPoint &block, uint depth, GBaseStack *defense_variants)
+bool Gomoku::isDefeatBlock5(GPlayer player, const GPoint &block, uint depth, bool& long_attack, GBaseStack *defense_variants)
 {
   assert(isEmptyCell(block));
   assert(depth > 0);
@@ -822,10 +946,10 @@ bool Gomoku::isDefeatBlock5(GPlayer player, const GPoint &block, uint depth, GBa
     const GPoint& enemy_move = m_moves5[player].lastCell();
     //Блокирующий ход противника тоже может быть контршахом,
     //в этом случае имеем возможность продолжить цепочку шахов противника
-    is_victory_enemy_move4 = findVictoryMove4Chain(!player, enemy_move, depth - 1, defense_variants);
+    is_victory_enemy_move4 = findVictoryMove4Chain(!player, enemy_move, depth - 1, long_attack, defense_variants);
   }
   else
-    is_victory_enemy_move4 = completeVictoryMove4Chain(!player, depth - 1, defense_variants);
+    is_victory_enemy_move4 = completeVictoryMove4Chain(!player, depth - 1, long_attack, defense_variants);
 
   if (!is_victory_enemy_move4)
     return false;
@@ -873,7 +997,6 @@ bool Gomoku::completeLongOrVictoryMove4Chain(GPlayer player, uint depth)
 
 bool Gomoku::findLongOrVictoryMove4Chain(GPlayer player, const GBaseStack &variants, uint depth)
 {
-  //for (const auto& move4: variants)
   for (const GPoint* move4 = variants.end(); move4 != variants.begin();)
   {
     --move4;
@@ -928,31 +1051,45 @@ bool Gomoku::isLongOrDefeatBlock5(GPlayer player, const GPoint &block, uint dept
     return completeLongOrVictoryMove4Chain(!player, depth - 1);
 }
 
-bool Gomoku::findVictoryAttack(GPlayer player, uint depth, GPoint *victory_move)
+bool Gomoku::findVictoryAttack(
+  GPlayer player,
+  uint depth,
+  bool chain,
+  bool& long_attack_possible,
+  GPoint *victory_move)
 {
-  m_long_attack_possible = false;
-  return findVictoryAttack(player, dangerMoves(player).cells(), depth, victory_move);
+  return findVictoryAttack(player, dangerMoves(player).cells(), depth, chain, long_attack_possible, victory_move);
 }
 
-bool Gomoku::findVictoryAttack(GPlayer player, const GBaseStack &attack_moves, uint depth, GPoint* victory_move)
+bool Gomoku::findVictoryAttack(
+  GPlayer player,
+  const GBaseStack &attack_moves,
+  uint depth,
+  bool chain,
+  bool& long_attack_possible,
+  GPoint* victory_move)
 {
+  long_attack_possible = false;
+  bool move_long_attack_possible;
   //Сначала рассматриваем шахи, поскольку выигрышная цепочка шахов гарантирует выигрыш
   for (const GPoint* attack_move = attack_moves.end(); attack_move != attack_moves.begin(); )
   {
     --attack_move;
-    if (isVictoryMove4(player, *attack_move, depth))
+    if (isVictoryMove4(player, *attack_move, depth, chain, move_long_attack_possible))
     {
       if (victory_move)
         *victory_move = *attack_move;
       return true;
     }
+    if (!long_attack_possible && move_long_attack_possible)
+      long_attack_possible = move_long_attack_possible;
   }
 
   //На глубине 0 открытые тройки не рассматриваются,
   //поскольку на глубине 0 нас интересует мат в один ход
   if (depth == 0)
   {
-    m_long_attack_possible = true;
+    long_attack_possible = true;
     return false;
   }
 
@@ -965,23 +1102,41 @@ bool Gomoku::findVictoryAttack(GPlayer player, const GBaseStack &attack_moves, u
   for (const GPoint* attack_move = attack_moves.end(); attack_move != attack_moves.begin(); )
   {
     --attack_move;
-    if (isNearVictoryOpen3(player, *attack_move, depth))
+    if (isNearVictoryOpen3(player, *attack_move, depth, chain, move_long_attack_possible))
     {
       if (victory_move)
         *victory_move = *attack_move;
       return true;
     }
+    if (!long_attack_possible && move_long_attack_possible)
+      long_attack_possible = true;
   }
   return false;
 }
 
-bool Gomoku::isVictoryMove(GPlayer player, const GPoint &move, uint depth)
+bool Gomoku::isVictoryMove(
+  GPlayer player,
+  const GPoint &move,
+  uint depth, bool chain,
+  bool& long_attack_possible)
 {
-  return isVictoryMove4(player, move, depth) || isNearVictoryOpen3(player, move, depth);
+  bool long_attack_possible1, long_attack_possible2;
+  bool res =
+    isVictoryMove4(player, move, depth, chain, long_attack_possible1) ||
+    isNearVictoryOpen3(player, move, depth, chain, long_attack_possible2);
+  long_attack_possible = long_attack_possible1 || long_attack_possible2;
+  return res;
 }
 
-bool Gomoku::isVictoryMove4(GPlayer player, const GPoint &move, uint depth)
+bool Gomoku::isVictoryMove4(
+  GPlayer player,
+  const GPoint &move,
+  uint depth,
+  bool chain,
+  bool& long_attack_possible)
 {
+  long_attack_possible = false;
+
   if (!isEmptyCell(move))
     return false;
   const auto& move_data = dangerMoves(player).get(move);
@@ -997,13 +1152,23 @@ bool Gomoku::isVictoryMove4(GPlayer player, const GPoint &move, uint depth)
   if (moves5_count == 0)  //ход не является шахом
     return false;
   if (depth == 0)
+  {
+    if (moves5_count == 1)
+      long_attack_possible = true;
     return false;
+  }
   GMoveMaker gmm(this, player, move);
-  return isDefeatMove(!player, m_moves5[player].lastCell(), depth);
+  return isDefeatMove(!player, m_moves5[player].lastCell(), depth, chain, long_attack_possible);
 }
 
-bool Gomoku::isNearVictoryOpen3(GPlayer player, const GPoint &move, uint depth)
+bool Gomoku::isNearVictoryOpen3(
+  GPlayer player,
+  const GPoint &move,
+  uint depth, bool chain,
+  bool& long_attack_possible)
 {
+  long_attack_possible = false;
+
   if (depth == 0)
     return false;
   if (!isEmptyCell(move))
@@ -1024,15 +1189,22 @@ bool Gomoku::isNearVictoryOpen3(GPlayer player, const GPoint &move, uint depth)
   //У противника не должно быть длинной или выигрышной цепочки шахов после очередной атакующей тройки игрока
   if (findLongOrVictoryMove4Chain(!player, maxAttackDepth()))
     return false;
+
   for (const auto& defense_variant: defense_variants)
   {
-    if (!isDefeatMove(!player, defense_variant, depth))
+    if (!isDefeatMove(!player, defense_variant, depth, chain, long_attack_possible))
       return false;
   }
   return true;
 }
 
-bool Gomoku::isDefeatMove(GPlayer player, const GPoint& move, uint depth, uint attack_moves_count)
+bool Gomoku::isDefeatMove(
+  GPlayer player,
+  const GPoint& move,
+  uint depth,
+  bool chain,
+  bool& long_attack_possible,
+  GBaseStack* defense_shahs)
 {
   if (!isEmptyCell(move))
     return false;
@@ -1042,10 +1214,33 @@ bool Gomoku::isDefeatMove(GPlayer player, const GPoint& move, uint depth, uint a
   if (md.m_moves5_count > 1) //контрмат
     return false;
   if (md.m_moves5_count == 1) //контршах (у противника только один вариант потенциально выигрышного хода)
-    return isVictoryMove(!player, m_moves5[player].lastCell(), depth - 1);
-  GStack<32> chain_moves;
-  getChainMoves(chain_moves, attack_moves_count);
-  return findVictoryAttack(!player, chain_moves, depth - 1);
+    return isVictoryMove(!player, m_moves5[player].lastCell(), depth - 1, chain, long_attack_possible);
+
+  if (defense_shahs)
+  {
+    //Угроза выигрышной цепочки шахов могла остаться (например в случае вилки 3х3)
+    GStack<gridSize()> tmp_defense_variants;
+    if (findBestVictoryMove4Chain(!player, depth - 1/*, long_attack_possible*/, &tmp_defense_variants))
+    {
+      //Фиксируем контршахи среди вновь найденных защитных вариантов,
+      //Они также должны быть рассмотрены в качестве защитных вариантов на текущей глубине
+      for (const GPoint& def_var: tmp_defense_variants)
+      {
+        if (isDangerMove4(player, def_var) && std::find(defense_shahs->begin(), defense_shahs->end(), def_var) == defense_shahs->end())
+          defense_shahs->push() = def_var;
+      }
+      return true;
+    }
+  }
+
+  if (chain)
+  {
+    GStack<32> chain_moves;
+    getChainMoves(chain_moves);
+    return findVictoryAttack(!player, chain_moves, depth - 1, true, long_attack_possible);
+  }
+  else
+    return findVictoryAttack(!player, dangerMoves(!player).cells(), depth - 1, false, long_attack_possible);
 }
 
 bool Gomoku::findLongAttack(GPlayer player, uint depth, GPoint *move)
@@ -1145,6 +1340,14 @@ bool Gomoku::isLongDefense(GPlayer player, const GPoint& move, uint depth, uint 
   return findLongAttack(!player, chain_moves, depth - 1);
 }
 
+bool Gomoku::findLongOrVictoryAttack(GPlayer player, GPoint* move)
+{
+  bool long_attack_possible;
+  if (findVictoryAttack(player, getAiLevel(), false, long_attack_possible, move))
+    return true;
+  return long_attack_possible && findLongAttack(player, maxAttackDepth(), move);
+}
+
 void Gomoku::getChainMoves(GStack<32>& chain_moves, uint attack_moves_count)
 {
   chain_moves.clear();
@@ -1199,15 +1402,15 @@ void Gomoku::getChainMoves(
   }
 }
 
-bool Gomoku::isSpace(GPlayer player, const GPoint& move, const GVector &v1, int required_space)
+bool Gomoku::isSpace(GPlayer player, const GPoint& move, const GVector &v1, uint required_space)
 {
-  int space = 1;
+  uint space = 1;
   getSpace(player, move, v1, space, required_space);
   getSpace(player, move, -v1, space, required_space);
   return space == required_space;
 }
 
-void Gomoku::getSpace(GPlayer player, GPoint move, const GVector &v1, int &space, int required_space)
+void Gomoku::getSpace(GPlayer player, GPoint move, const GVector &v1, uint &space, uint required_space)
 {
   while (space < required_space)
   {
@@ -1226,23 +1429,6 @@ bool Gomoku::isGameOver() const
 const GLine* Gomoku::getLine5() const
 {
   return isValidCell(m_line5.start) ? &m_line5 : nullptr;
-}
-
-bool Gomoku::randomFromTwo(GPlayer player, GVariantsIndex& var_index, GPoint*& cur, const GPoint* end)
-{
-  assert(cur >= var_index.begin() && end >= cur);
-  if (cur == end || !isEmptyCell(*cur))
-    return false;
-  if (cur + 1 == end || !isEmptyCell(cur[1]))
-    return true;
-  assert(getStoredWgt(player, cur[0]) >= getStoredWgt(player, cur[1]));
-  if (getStoredWgt(player, cur[0]) > getStoredWgt(player, cur[1]))
-    return true;
-  //Перемешиваем текущий четный и следующий нечетный вариант
-  bool odd = (cur - var_index.begin()) & 1;
-  if (!odd && random(0, 2))
-    std::swap(*cur, cur[1]);
-  return true;
 }
 
 void Gomoku::copyFrom(const Gomoku &g)
@@ -1811,9 +1997,10 @@ bool Gomoku::isDangerOpen3(GBaseStack *defense_variants)
   //и среди них хотя бы один должен встретиться дважды
   if (md.m_moves4.size() < 4)
     return false;
+  bool long_attack;
   for (uint i = 0; i < md.m_moves4.size(); ++i)
   {
-    if (findVictoryMove4Chain(md.player, md.m_moves4[i], 0, defense_variants))
+    if (findVictoryMove4Chain(md.player, md.m_moves4[i], 0, long_attack, defense_variants))
       return true;
   }
   return false;
@@ -1933,9 +2120,8 @@ int Gomoku::getLineWgt(uint line_len)
   return (line_len >= 4) ? 6  : (line_len * 2 - 1);
 }
 
-int Gomoku::maxStoredWgt()
+int Gomoku::maxStoredWgt(GPlayer player, GPoint* move)
 {
-  GPlayer player = !lastMovePlayer();
   int maxwgt = -WGT_VICTORY;
 
   GPoint p{0, 0};
@@ -1945,16 +2131,19 @@ int Gomoku::maxStoredWgt()
       continue;
     int wgt = getStoredWgt(player, p);
     if (wgt > maxwgt)
+    {
       maxwgt = wgt;
+      if (move)
+        *move = p;
+    }
   }
   while (next(p));
 
   return maxwgt;
 }
 
-int Gomoku::maxStoredWgt(const GBaseStack& variants)
+int Gomoku::maxStoredWgt(GPlayer player, const GBaseStack& variants)
 {
-  GPlayer player = !lastMovePlayer();
   int maxwgt = -WGT_VICTORY;
 
   for (const GPoint& p: variants)
@@ -1978,11 +2167,6 @@ void Gomoku::sortVariantsByWgt(GPlayer player, GPoint* begin, GPoint* end)
   std::sort(begin, end, cmp);
 }
 
-void Gomoku::sortVariantsByWgt(GPlayer player, GBaseStack& stack)
-{
-  return sortVariantsByWgt(player, stack.begin(), stack.end());
-}
-
 void Gomoku::sortMaxN(GPlayer player, GPoint* begin, GPoint* end, uint n)
 {
   assert(n > 0 && begin + n <= end);
@@ -1996,9 +2180,16 @@ void Gomoku::sortMaxN(GPlayer player, GPoint* begin, GPoint* end, uint n)
   std::sort(begin, begin + n - 1, cmp);
 }
 
-void Gomoku::sortMaxN(GPlayer player, GBaseStack& stack, uint n)
+void Gomoku::nthElement(GPlayer player, GPoint* begin, GPoint* end, uint n)
 {
-  return sortMaxN(player, stack.begin(), stack.end(), n);
+  assert(n > 0 && begin + n <= end);
+
+  auto cmp = [player, this](const GPoint& variant1, const GPoint& variant2)
+  {
+    return cmpVariants(player, variant1, variant2);
+  };
+
+  std::nth_element(begin, begin + n - 1, end, cmp);
 }
 
 bool Gomoku::cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& variant2)
@@ -2008,6 +2199,184 @@ bool Gomoku::cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& v
   if (!isEmptyCell(variant2))
     return true;
   return get(variant1).wgt[player] > get(variant2).wgt[player];
+}
+
+void Gomoku::initWgtTree()
+{
+  getMaxWgt(curPlayer(), 0, NODE_COUNT, {-1, -1}, &m_variants_tree.getRootVariants());
+}
+
+int Gomoku::getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GPoint& move5, GVariants* variants)
+{
+  if (variants)
+    variants->clear();
+
+  assert(cells().size() < gridSize());
+  if (cells().size() == gridSize() - 1)
+    return 0;
+
+  //На последнем уровне исходного игрока учитываем только мат
+  if (srcPlayerDepth(depth) && rest_node_count <= 1)
+  {
+    if (isValidCell(move5))
+    {
+      bool long_attack;
+      return findVictoryMove4Chain(player, move5, 0, long_attack) ? WGT_VICTORY : 0;
+    }
+    return findBestVictoryMove4Chain(player, 0) ? WGT_VICTORY : 0;
+  }
+
+  GStack<gridSize()> defense_variants;
+
+  //Отбираем варианты (они могут быть вынужденными или произвольными)
+  GPoint* begin;
+  GPoint* end;
+
+  bool enemy_danger = getDefenseVariants(player, move5, defense_variants, begin, end);
+  if (!enemy_danger)
+    getArbitraryVariants(player, depth, begin, end);
+
+  uint vcount = end - begin;
+  uint child_node_count = (vcount > rest_node_count) ? 0 : ((rest_node_count - vcount) / vcount);
+
+  int max_wgt = -WGT_VICTORY;
+  for (const GPoint* var = begin; var != end; ++var)
+  {
+    if (!isEmptyCell(*var))
+      assert(false);
+    assert(isEmptyCell(*var));
+
+    if (variants)
+      (GPoint&)variants->push() = *var;
+
+    int wgt = getWgt(player, *var, depth, rest_node_count, child_node_count, nullptr);
+
+    if (variants)
+      variants->back().wgt = wgt;
+
+    if (wgt == WGT_VICTORY)
+      return WGT_VICTORY;
+    if (wgt > max_wgt)
+      max_wgt = wgt;
+  }
+  return max_wgt;
+}
+
+int Gomoku::getWgt(GPlayer player, const GPoint& move, uint depth, uint rest_node_count, uint child_node_count, GVariants* children)
+{
+  const auto& move4_data = dangerMoves(player).get(move);
+  const auto& moves5 = move4_data.m_moves5;
+  GPoint move5{-1, -1};
+  uint i;
+  for (i = 0; i < moves5.size(); ++i)
+  {
+    if (!isEmptyCell(moves5[i]))
+      continue;
+    if (isValidCell(move5)) //мат
+      return WGT_VICTORY;
+    move5 = moves5[i];
+  }
+
+  int enemy_wgt;
+
+  if (rest_node_count > 1)
+  {
+    GMoveMaker gmm(this, player, move);
+    enemy_wgt = getMaxWgt(!player, depth + 1, child_node_count, move5, nullptr);
+    if (enemy_wgt == WGT_VICTORY || enemy_wgt == -WGT_VICTORY)
+      return -enemy_wgt;
+  }
+  else
+    enemy_wgt = 0;
+
+  return getStoredWgt(player, move) - enemy_wgt;
+}
+
+bool Gomoku::getDefenseVariants(GPlayer player, const GPoint& move5, GBaseStack& defense_variants, GPoint*& begin, GPoint*& end)
+{
+  assert(defense_variants.empty());
+
+  if (isValidCell(move5))
+    defense_variants.push() = move5;
+  else
+  {
+    if (!findBestVictoryMove4Chain(!player, 0, &defense_variants))
+      return false;
+    assert(defense_variants.size() > 0 && defense_variants.size() < 4);
+    //Добавим контршахи
+    for (const GPoint& move: dangerMoves(player).cells())
+    {
+      if (isDangerMove4(player, move) && std::find(defense_variants.begin(), defense_variants.end(), move) == defense_variants.end())
+        defense_variants.push() = move;
+    }
+  }
+  begin = defense_variants.begin();
+  end = defense_variants.end();
+  return true;
+}
+
+void Gomoku::getArbitraryVariants(GPlayer player, uint depth, GPoint*& begin, GPoint*& end)
+{
+  auto& variants = m_variants_index[depth];
+
+  begin = variants.begin();
+
+  uint free_cells_count = gridSize() - cells().size();
+
+  if (depth > 0)
+  {
+    uint vcount = std::min(VCOUNT, free_cells_count);
+    nthElement(player, begin, variants.end(), vcount);
+    end = begin + vcount;
+    return;
+  }
+
+  nthElement(player, begin, variants.end(), free_cells_count);
+  end = begin + free_cells_count;
+  if (free_cells_count <= VCOUNT)
+    return;
+
+  GPoint* free_cells_end = end;
+  end = begin + VCOUNT;
+
+  //Выделяем VCOUNT свободных ходов с максимальным хранимым весом и сортируем их
+  sortMaxN(player, begin, free_cells_end, VCOUNT);
+  //Среди оставшихся свободных ходов ищем ходы, которые создают угрозу
+  for (GPoint* var = end; var != free_cells_end; ++var)
+  {
+    {
+      GMoveMaker gmm(this, player, *var);
+      bool long_attack_possible;
+      bool danger = findVictoryAttack(player, getAiLevel(), false, long_attack_possible);
+      if (!danger && long_attack_possible)
+        danger = findLongAttack(player, maxAttackDepth());
+      if (!danger)
+        continue;
+    }
+    //Добавляем опасный ход вместо неопасного с минимальным весом
+    for (; ; )
+    {
+      assert(end > begin);
+      --end;
+      if (isDangerMove4(player, *end))
+        continue;
+      GMoveMaker gmm(this, player, *end);
+      bool long_attack_possible;
+      bool danger = findVictoryAttack(player, getAiLevel(), false, long_attack_possible);
+      if (!danger && long_attack_possible)
+        danger = findLongAttack(player, maxAttackDepth());
+      if (!danger)
+      {
+        std::swap(*end, *var);
+        break;
+      }
+      if (end == begin)
+        break;
+    }
+    if (end == begin)
+      break;
+  }
+  end = begin + VCOUNT;
 }
 
 int Gomoku::updateMaxWgt(int wgt, int& max_wgt, const GPoint* move, GBaseStack* max_wgt_moves)

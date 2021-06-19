@@ -195,7 +195,56 @@ protected:
     }
   };
 
-  bool randomFromTwo(GPlayer player, GVariantsIndex& var_index, GPoint*& cur, const GPoint* end);
+  static constexpr uint VCOUNT     = 75;     //Максимальное число рассматриваемых дочерних вариантов для каждого узла на любом уровне кроме первого
+  static constexpr uint NODE_COUNT = 500000; //Максимальное число узлов в дереве (ограничение на общее число реализованных вариантов)
+  static constexpr uint MAX_TREE_DEPTH = 20;
+
+  class GVariants;
+
+  class GVariant : public GPoint
+  {
+  public:
+    GVariant() : children(nullptr) {}
+    bool operator<(const GVariant& var)
+    {
+      return wgt > var.wgt;
+    }
+    int wgt;
+    GVariants* children;
+  };
+
+  class GVariants : public TStack<GVariant, VCOUNT>
+  {
+  public:
+    GVariants() : children_base(nullptr) {}
+    GVariant& push()
+    {
+      GVariants* children = empty() ? children_base : back().children + 1;
+      GVariant& var = TStack<GVariant, VCOUNT>::push();
+      var.children = children;
+      return var;
+    }
+    void sort()
+    {
+      std::sort(begin(), end());
+    }
+    GVariants* children_base;
+  };
+
+  class GVariantsTree
+  {
+  public:
+    GVariantsTree()
+    {
+      m_variants[0].children_base = &m_variants[1];
+    }
+    GVariants& getRootVariants()
+    {
+      return m_variants[0];
+    }
+  protected:
+    GVariants m_variants[1 + VCOUNT];
+  };
 
   void copyFrom(const Gomoku& g);
 
@@ -206,26 +255,36 @@ protected:
   GPoint hintImpl(GPlayer player);
   GPoint hintSecondMove() const;
   GPoint hintThirdMove(GPlayer player);
-  GPoint hintForthMove(GPlayer player);
 
   bool hintMove5(GPlayer player, GPoint& move) const;
   bool hintBlock5(GPlayer player, GPoint& move) const;
 
-  int calcWgt(GPlayer player, const GPoint& pvariant, bool enemy_attack);
-  int calcWgt(const GBaseStack& defenseVariants, bool enemy_attack);
+  int processVariant0(GPlayer player, const GPoint& move, uint enemy_danger_flags, int best_wgt);
+  void processDepth1(GBaseStack& variants, uint vcount, uint enemy_danger_flags, int best_wgt0, int& min_wgt0);
+  void processVariant1(const GPoint& move, uint enemy_danger_flags, int best_wgt0, int& min_wgt0);
+  void processDepth2(GBaseStack& variants, uint vcount, uint enemy_danger_flags, int best_wgt0, int& min_wgt0);
+  void processVariant2(const GPoint& move, uint enemy_danger_flags, int best_wgt0, int& min_wgt0);
+  void processDepth3(GBaseStack& variants, uint vcount, uint enemy_danger_flags, int best_wgt0, int& min_wgt0);
+  void processVariant3(const GPoint& move, uint enemy_danger_flags, int best_wgt0, int& min_wgt0);
 
-  GPoint lastHopeMove(GPlayer player);
+  bool findBestVictoryMove4Chain(
+    GPlayer player,
+    uint maxdepth,
+    GBaseStack* defense_variants = 0,
+    GPoint* victory_move = 0);
 
   //Поиск выигрышной цепочки шахов
   bool findVictoryMove4Chain(
     GPlayer player,
     uint depth,
+    bool& long_attack,
     GBaseStack* defense_variants = 0,
     GPoint* victory_move = 0);
 
   bool completeVictoryMove4Chain(
     GPlayer player,
     uint depth,
+    bool& long_attack,
     GBaseStack* defense_variants = 0,
     GPoint* victory_move = 0);
 
@@ -233,6 +292,7 @@ protected:
     GPlayer player,
     const GBaseStack& variants,
     uint depth,
+    bool& long_attack,
     GBaseStack* defense_variants = 0,
     GPoint* victory_move = 0);
 
@@ -241,6 +301,7 @@ protected:
     GPlayer player,
     const GPoint& move4,
     uint depth,
+    bool& long_attack,
     GBaseStack* defense_variants = 0);
 
   //Вес блокировки шаха противника в цепочке шахов противника
@@ -248,6 +309,7 @@ protected:
     GPlayer player,
     const GPoint& block,
     uint depth,
+    bool& long_attack,
     GBaseStack* defense_variants = 0);
 
   bool findLongOrVictoryMove4Chain(GPlayer player, uint depth);
@@ -256,17 +318,56 @@ protected:
   bool findLongOrVictoryMove4Chain(GPlayer player, const GPoint& move4, uint depth);
   bool isLongOrDefeatBlock5(GPlayer player, const GPoint &block, uint depth);
 
-  bool findVictoryAttack(GPlayer player, uint depth, GPoint* victory_move = 0);
-  bool findVictoryAttack(GPlayer player, const GBaseStack& variants, uint depth, GPoint* victory_move = 0);
-  bool isVictoryMove(GPlayer player, const GPoint& move, uint depth);
-  bool isVictoryMove4(GPlayer player, const GPoint& move, uint depth);
-  bool isNearVictoryOpen3(GPlayer player, const GPoint &move, uint depth);
-  bool isDefeatMove(GPlayer player, const GPoint& move, uint depth, uint attack_moves_count = 1);
+  bool findVictoryAttack(
+    GPlayer player,
+    uint depth,
+    bool chain,
+    bool& long_attack_possible,
+    GPoint* victory_move = 0);
+
+  bool findVictoryAttack(
+    GPlayer player,
+    const GBaseStack& variants,
+    uint depth,
+    bool chain,
+    bool& long_attack_possible,
+    GPoint* victory_move = 0);
+
+  bool isVictoryMove(
+    GPlayer player,
+    const GPoint& move,
+    uint depth,
+    bool chain,
+    bool& long_attack_possible);
+
+  bool isVictoryMove4(
+    GPlayer player,
+    const GPoint& move,
+    uint depth,
+    bool chain,
+    bool& long_attack_possible);
+
+  bool isNearVictoryOpen3(
+    GPlayer player,
+    const GPoint &move,
+    uint depth,
+    bool chain,
+    bool& long_attack_possible);
+
+  bool isDefeatMove(
+    GPlayer player,
+    const GPoint& move,
+    uint depth,
+    bool chain,
+    bool& long_attack_possible,
+    GBaseStack* defense_shahs = 0);
 
   bool findLongAttack(GPlayer player, uint depth, GPoint* move = 0);
   bool findLongAttack(GPlayer player, const GBaseStack& attack_moves, uint depth, GPoint* move = 0);
   bool findLongAttack(GPlayer player, const GPoint& move, uint depth, bool forced = false);
   bool isLongDefense(GPlayer player, const GPoint& move, uint depth, uint attack_moves_count = 1);
+
+  bool findLongOrVictoryAttack(GPlayer player, GPoint* move = 0);
 
   void getChainMoves(GStack<32>& chain_moves, uint attack_moves_count = 1);
   void getChainMoves(const GPoint& center, GStack<32>& chain_moves);
@@ -277,8 +378,10 @@ protected:
     GStack<32>& chain_moves,
     const GPoint* bp,
     const GPoint* ep);
-  bool isSpace(GPlayer player, const GPoint& center, const GVector& v1, int required_space);
-  void getSpace(GPlayer player, GPoint move, const GVector& v1, int& space, int required_space);
+  bool isSpace(GPlayer player, const GPoint& center, const GVector& v1, uint required_space);
+  void getSpace(GPlayer player, GPoint move, const GVector& v1, uint& space, uint required_space);
+
+  GPoint lastHopeMove(GPlayer player);
 
   GPlayer lastMovePlayer() const;
   GPlayer curPlayer() const;
@@ -335,7 +438,7 @@ protected:
 
   uint maxAttackDepth()
   {
-    return getAiLevel() * 2;
+    return getAiLevel() * 2 + 1;
   }
 
   int getStoredWgt(GPlayer player, const GPoint& move)
@@ -344,15 +447,29 @@ protected:
     return get(move).wgt[player];
   }
 
-  int maxStoredWgt();
-  int maxStoredWgt(const GBaseStack& variants);
+  int maxStoredWgt(GPlayer player, GPoint* move = nullptr);
+  int maxStoredWgt(GPlayer player, const GBaseStack& variants);
 
-  void sortVariantsByWgt(GPlayer player, GBaseStack& stack);
   void sortVariantsByWgt(GPlayer player, GPoint* begin, GPoint* end);
-  void sortMaxN(GPlayer player, GBaseStack& stack, uint n);
   void sortMaxN(GPlayer player, GPoint* begin, GPoint* end, uint n);
+  void nthElement(GPlayer player, GPoint* begin, GPoint* end, uint n);
 
   bool cmpVariants(GPlayer player, const GPoint& variant1, const GPoint& variant2);
+
+  void initWgtTree();
+
+  int getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GPoint& move5, GVariants* variants);
+  int getWgt(GPlayer player, const GPoint& move, uint depth, uint rest_node_count, uint child_node_count, GVariants* children);
+
+  bool getDefenseVariants(GPlayer player, const GPoint& move5, GBaseStack& defense_variants, GPoint*& begin, GPoint*& end);
+  void getArbitraryVariants(GPlayer player, uint depth, GPoint*& begin, GPoint*& end);
+
+  bool srcPlayerDepth(uint depth)
+  {
+    //Варианты исходного игрока (для которого подбирается ход)
+    //рассматриваются на четной глубине начиная с нулевой
+    return !(depth & 1);
+  }
 
   static int updateMaxWgt(
     int wgt,
@@ -363,6 +480,7 @@ protected:
   static GPoint randomMove(const GBaseStack& moves);
 
 protected:
+
   static const int WGT_VICTORY     = 1000000;
   static const int WGT_LONG_ATTACK = 999000;
 
@@ -370,6 +488,10 @@ protected:
   {
     return wgt > 900000 || wgt < -900000;
   }
+
+  static const uint ATTACK_VICTORY       = 1;
+  static const uint ATTACK_CHAIN_VICTORY = 2;
+  static const uint ATTACK_CHAIN_LONG    = 4;
 
   template <uint Depth, uint MaxWgtChildrenCount>
   class GVariantsIterator
@@ -421,7 +543,7 @@ protected:
     bool next()
     {
       if (m_cur_depth == Depth)
-        return setWgt(curStoredWgt() - m_g->maxStoredWgt());
+        return setWgt(curStoredWgt() - m_g->maxStoredWgt(m_g->curPlayer()));
       else if (!m_g->isEmptyCell(getMove(m_cur_depth + 1, 0))) //все клетки заняты
         return setWgt(curStoredWgt());
       return firstChild();
@@ -570,13 +692,9 @@ protected:
 
   TGridStack<GDangerMoveData> m_danger_moves[2];
 
-  GVariantsIndex m_variants_index[2];
+  GVariantsIndex m_variants_index[MAX_TREE_DEPTH];
 
-  //При неудачном поиске выигрышной атаки определяем,
-  //возможна ли длинная атака
-  //false - длинной атаки нет, можно не искать
-  //true - длинная атака возможна
-  bool m_long_attack_possible;
+  GVariantsTree m_variants_tree;
 
 protected:
   decltype(m_danger_moves[G_BLACK]) dangerMoves(GPlayer player)
@@ -619,7 +737,7 @@ protected:
 class GCounterShahChainMaker
 {
 public:
-  GCounterShahChainMaker(Gomoku* g) : m_g(g), m_counter(0)
+  GCounterShahChainMaker(Gomoku* g) : m_g(g), m_count(0)
   {
     assert(g);
     for (; ; )
@@ -629,32 +747,32 @@ public:
         break;
       const GPoint& block = m_g->m_moves5[last_move_data.player].lastCell();
       m_g->doInMind(block, !last_move_data.player);
-      ++m_counter;
+      ++m_count;
     }
   }
 
   ~GCounterShahChainMaker()
   {
     assert(m_g);
-    while (m_counter > 0)
+    while (m_count > 0)
       undo();
   }
 
-  bool empty()
+  uint count()
   {
-    return m_counter == 0;
+    return m_count;
   }
 
   void undo()
   {
-    assert(m_counter > 0);
+    assert(m_count > 0);
     m_g->undoInMind();
-    --m_counter;
+    --m_count;
   }
 
 protected:
   Gomoku* m_g;
-  uint m_counter;
+  uint m_count;
 };
 
 } //namespace nsg

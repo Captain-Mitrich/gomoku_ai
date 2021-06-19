@@ -52,6 +52,18 @@ public:
 
   void testHintImpl();
 
+  void testProcessVariant0_1();
+
+  void testProcessVariant0_2();
+
+  void testProcessVariant0_3();
+
+  void testProcessVariant0_4();
+
+  void testProcessVariant0_5();
+
+  //void testProcessDepth1();
+
 protected:
   void testEmpty();
 
@@ -568,33 +580,35 @@ void TestGomoku::testHintMove5()
 
 void TestGomoku::testHintVictoryMove4Chain()
 {
+  bool long_attack;
+
   doMove(7, 7, G_BLACK);
   doMove(8, 7, G_BLACK);
-  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
+  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0, long_attack));
   doMove(6, 7, G_BLACK);
 
   GPoint move4;
-  assert(findVictoryMove4Chain(G_BLACK, 0, 0, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 0, long_attack, 0, &move4));
   assert((move4 == GPoint{5, 7} || move4 == GPoint{9, 7}));
 
   GStack<32> defense_variants;
-  assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
+  assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, long_attack, &defense_variants));
   GTestGrid grid(defense_variants);
   assert(grid.cells().size() == 2 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}));
   defense_variants.clear();
-  assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0, &defense_variants));
+  assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0, long_attack, &defense_variants));
   grid = defense_variants;
   assert(grid.cells().size() == 2 && !grid.isEmptyCell({9, 7}) && !grid.isEmptyCell({5, 7}));
 
   doMove(9, 7, G_WHITE);
-  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
-  assert(!findVictoryMove4Chain(G_BLACK, {5, 7}, 0));
-  assert(!findVictoryMove4Chain(G_BLACK, 0));
+  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0, long_attack));
+  assert(!findVictoryMove4Chain(G_BLACK, {5, 7}, 0, long_attack));
+  assert(!findVictoryMove4Chain(G_BLACK, 0, long_attack));
 
   undo();
   doMove(10, 7, G_WHITE);
-  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0));
-  assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0));
+  assert(!findVictoryMove4Chain(G_BLACK, {9, 7}, 0, long_attack));
+  assert(findVictoryMove4Chain(G_BLACK, {5, 7}, 0, long_attack));
 
   doMove(10, 6, G_BLACK);
   doMove(11, 5, G_BLACK);
@@ -605,7 +619,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(12, 10, G_BLACK);
   doMove(13, 11, G_WHITE);
   defense_variants.clear();
-  assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, &defense_variants));
+  assert(findVictoryMove4Chain(G_BLACK, {9, 7}, 0, long_attack, &defense_variants));
   //Вилка кратностью больше двух контрится только одним ходом
   assert((defense_variants.size() == 1 && defense_variants[0] == GPoint{9, 7}));
 
@@ -618,7 +632,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(5, 4, G_BLACK);
   //Мат в два хода
   defense_variants.clear();
-  assert(findVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 1, long_attack, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 5);
   grid = defense_variants;
@@ -636,7 +650,7 @@ void TestGomoku::testHintVictoryMove4Chain()
   //Тоже мат в два хода, но к списку защитных ходов добавляются ходы,
   //благодаря которым ответ на первый шах становится контршахом
   defense_variants.clear();
-  assert(findVictoryMove4Chain(G_BLACK, 1, &defense_variants, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 1, long_attack, &defense_variants, &move4));
   assert((move4 == GPoint{5, 7}));
   //Защитные ходы могут дублироваться
   assert(defense_variants.size() >= 9);
@@ -657,16 +671,16 @@ void TestGomoku::testHintVictoryMove4Chain()
   doMove(4, 11, G_BLACK);
   //Ответ на первый шах является контршахом,
   //поэтому мат в два хода невозможен
-  assert(!findVictoryMove4Chain(G_BLACK, 1));
+  assert(!findVictoryMove4Chain(G_BLACK, 1, long_attack));
 
   doMove(3, 7, G_BLACK);
   doMove(2, 8, G_BLACK);
   doMove(6, 4, G_WHITE);
   //Ответ на контршах также является контршахом,
   //поэтому здесь мат в три хода
-  assert(!findVictoryMove4Chain(G_BLACK, 1));
+  assert(!findVictoryMove4Chain(G_BLACK, 1, long_attack));
   defense_variants.clear();
-  assert(findVictoryMove4Chain(G_BLACK, 2, &defense_variants, &move4));
+  assert(findVictoryMove4Chain(G_BLACK, 2, long_attack, &defense_variants, &move4));
   //assert((move4 == GPoint{5, 7}));
   assert(defense_variants.size() == 7);
   grid = defense_variants;
@@ -690,7 +704,7 @@ void TestGomoku::testHintVictoryMove4Chain()
 
   //Ответ на первый шах является контрматом,
   //поэтому мат в три хода невозможен
-  assert(!findVictoryMove4Chain(G_BLACK, 2));
+  assert(!findVictoryMove4Chain(G_BLACK, 2, long_attack));
 }
 
 void TestGomoku::testFindLongAttack()
@@ -775,7 +789,8 @@ void TestGomoku::testHintImpl()
 
   {
     GMoveMaker gmm(this, G_BLACK, {9, 5});
-    assert(findVictoryMove4Chain(G_BLACK, {8, 5}, 1));
+    bool long_attack;
+    assert(findVictoryMove4Chain(G_BLACK, {8, 5}, 1, long_attack));
   }
 
   //Ход черных
@@ -786,6 +801,163 @@ void TestGomoku::testHintImpl()
   //одновременно начиная свою атаку полушахом
   //С учетом угрозы вилки 3х3 (см. выше) эта атака белых неблокируема
   assert(hintImpl(G_BLACK) != (GPoint{9, 5}));
+}
+
+void TestGomoku::testProcessVariant0_1()
+{
+  setAiLevel(2);
+  testMove(7, 7, G_BLACK);
+  testMove(6, 7, G_WHITE);
+  testMove(7, 8, G_BLACK);
+  testMove(7, 6, G_WHITE);
+  testMove(5, 8, G_BLACK);
+  testMove(8, 6, G_WHITE);
+  testMove(6, 6, G_BLACK);
+  testMove(8, 8, G_WHITE);
+  testMove(8, 7, G_BLACK);
+  testMove(9, 6, G_WHITE);
+  testMove(10, 6, G_BLACK);
+  testMove(9, 7, G_WHITE);
+  testMove(10, 8, G_BLACK);
+  testMove(10, 7, G_WHITE);
+  testMove(9, 5, G_BLACK);
+  testMove(8, 5, G_WHITE);
+  testMove(7, 4, G_BLACK);
+  testMove(11, 7, G_WHITE);
+
+  int wgt = processVariant0(G_BLACK, {11, 8}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY);
+  assert(wgt == -WGT_LONG_ATTACK);
+}
+
+void TestGomoku::testProcessVariant0_2()
+{
+  setAiLevel(2);
+  testMove(7, 7, G_BLACK); //1
+  testMove(8, 8, G_WHITE);
+  testMove(8, 7, G_BLACK); //2
+  testMove(9, 7, G_WHITE);
+  testMove(7, 9, G_BLACK); //3
+  testMove(7, 6, G_WHITE);
+  testMove(6, 8, G_BLACK); //4
+  testMove(8, 6, G_WHITE);
+  testMove(5, 7, G_BLACK); //5
+  testMove(4, 6, G_WHITE);
+  testMove(6, 6, G_BLACK); //6
+  testMove(6, 7, G_WHITE);
+  testMove(5, 8, G_BLACK); //7
+  testMove(7, 5, G_WHITE);
+  testMove(6, 4, G_BLACK); //8
+  testMove(10, 8, G_WHITE);
+  testMove(11, 9, G_BLACK);//9
+
+  int wgt = processVariant0(G_WHITE, {11, 8}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY);
+  assert(wgt == -WGT_VICTORY);
+
+  testMove(11, 8, G_WHITE);
+
+  int wgt0;
+  processVariant1({7, 8}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY, wgt0);
+  assert(wgt0 == -WGT_VICTORY);
+
+  testMove(12, 8, G_BLACK);//10
+  testMove(7, 8, G_WHITE);
+  testMove(9, 8, G_BLACK); //11
+
+  wgt = processVariant0(G_WHITE, {10, 10}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY);
+  assert(wgt == -WGT_VICTORY);
+}
+
+void TestGomoku::testProcessVariant0_3()
+{
+  setAiLevel(2);
+  testMove(7, 7, G_BLACK); //1
+  testMove(7, 6, G_WHITE);
+  testMove(6, 8, G_BLACK); //2
+  testMove(8, 7, G_WHITE);
+  testMove(6, 5, G_BLACK); //3
+  testMove(8, 6, G_WHITE);
+  testMove(6, 6, G_BLACK); //4
+  testMove(6, 7, G_WHITE);
+  testMove(8, 5, G_BLACK); //5
+  testMove(5, 5, G_WHITE);
+  testMove(5, 7, G_BLACK); //6
+  testMove(4, 8, G_WHITE);
+  testMove(4, 6, G_BLACK); //7
+  testMove(7, 9, G_WHITE);
+  testMove(3, 6, G_BLACK); //8
+
+  int wgt = processVariant0(G_WHITE, {5, 9}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY);
+  assert(wgt == -WGT_VICTORY);
+  wgt = processVariant0(G_WHITE, {5, 9}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_LONG_ATTACK);
+  assert(wgt == -WGT_LONG_ATTACK);
+}
+
+void TestGomoku::testProcessVariant0_4()
+{
+  setAiLevel(2);
+  testMove(7, 7, G_BLACK); //1
+  testMove(6, 8, G_WHITE);
+  testMove(5, 9, G_BLACK); //2
+  testMove(6, 7, G_WHITE);
+  testMove(6, 6, G_BLACK); //3
+  testMove(8, 8, G_WHITE);
+  testMove(5, 8, G_BLACK); //4
+  testMove(5, 7, G_WHITE);
+  testMove(7, 9, G_BLACK); //5
+  testMove(8, 9, G_WHITE);
+  testMove(7, 8, G_BLACK); //6
+  testMove(7, 10, G_WHITE);
+  testMove(7, 6, G_BLACK); //7
+  testMove(7, 5, G_WHITE);
+  testMove(9, 6, G_BLACK); //8
+  testMove(8, 6, G_WHITE);
+  testMove(8, 7, G_BLACK); //9
+  testMove(10, 5, G_WHITE);
+  testMove(9, 8, G_BLACK); //10
+  testMove(6, 5, G_WHITE);
+  testMove(9, 7, G_BLACK); //11
+
+  int wgt = processVariant0(G_WHITE, {8, 5}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY);
+  assert(wgt == -WGT_VICTORY);
+}
+
+void TestGomoku::testProcessVariant0_5()
+{
+  setAiLevel(2);
+  testMove(7, 7, G_BLACK); //1
+  testMove(8, 6, G_WHITE);
+  testMove(6, 6, G_BLACK); //2
+  testMove(8, 8, G_WHITE);
+  testMove(6, 7, G_BLACK); //3
+  testMove(8, 7, G_WHITE);
+  testMove(8, 5, G_BLACK); //4
+  testMove(6, 8, G_WHITE);
+  testMove(7, 6, G_BLACK); //5
+  testMove(5, 8, G_WHITE);
+  testMove(7, 8, G_BLACK); //6
+  testMove(7, 5, G_WHITE);
+  testMove(8, 9, G_BLACK); //7
+  testMove(5, 6, G_WHITE);
+  testMove(6, 4, G_BLACK); //8
+  testMove(5, 7, G_WHITE);
+  testMove(5, 5, G_BLACK); //9
+  testMove(6, 3, G_WHITE);
+  testMove(4, 6, G_BLACK); //10
+  testMove(7, 3, G_WHITE);
+  testMove(4, 4, G_BLACK); //11
+  testMove(3, 3, G_WHITE);
+  testMove(4, 3, G_BLACK); //12
+  testMove(4, 5, G_WHITE);
+  testMove(5, 4, G_BLACK); //13
+  testMove(7, 4, G_WHITE);
+  testMove(5, 3, G_BLACK); //14
+  testMove(7, 1, G_WHITE);
+  testMove(7, 2, G_BLACK); //15
+  testMove(5, 9, G_WHITE);
+  testMove(5, 10, G_BLACK);//16
+
+  int wgt = processVariant0(G_WHITE, {3, 4}, ATTACK_VICTORY|ATTACK_CHAIN_VICTORY|ATTACK_CHAIN_LONG, -WGT_VICTORY);
+  assert(wgt == -WGT_VICTORY);
 }
 
 using TestFunc = void();
@@ -823,6 +995,12 @@ int main()
   gtest("testHintMove5", &TestGomoku::testHintMove5);
   gtest("testHintVictoryMove4Chain", &TestGomoku::testHintVictoryMove4Chain);
   gtest("testFindLongAttack", &TestGomoku::testFindLongAttack);
-  gtest("testLastHopeMove", &TestGomoku::testLastHopeMove);
   gtest("testHintImpl", &TestGomoku::testHintImpl);
+  gtest("testProcessVariant0_1", &TestGomoku::testProcessVariant0_1);
+  gtest("testProcessVariant0_2", &TestGomoku::testProcessVariant0_2);
+  gtest("testProcessVariant0_3", &TestGomoku::testProcessVariant0_3);
+  gtest("testProcessVariant0_4", &TestGomoku::testProcessVariant0_4);
+  gtest("testProcessVariant0_5", &TestGomoku::testProcessVariant0_5);
+
+  //  gtest("testLastHopeMove", &TestGomoku::testLastHopeMove);
 }
