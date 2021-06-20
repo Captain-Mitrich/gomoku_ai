@@ -2392,7 +2392,7 @@ void Gomoku::getArbitraryVariants(GPlayer player, uint depth, GPoint*& begin, GP
     {
       GMoveMaker gmm(this, player, *var);
       bool long_attack_possible;
-      bool danger = findVictoryAttack(player, getAiLevel(), false, long_attack_possible);
+      danger = findVictoryAttack(player, getAiLevel(), false, long_attack_possible);
       if (!danger && long_attack_possible)
         danger = findLongAttack(player, maxAttackDepth());
     }
