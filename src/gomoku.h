@@ -195,8 +195,13 @@ protected:
     }
   };
 
-  static constexpr uint VCOUNT     = 75;     //Максимальное число рассматриваемых дочерних вариантов для каждого узла на любом уровне кроме первого
-  static constexpr uint NODE_COUNT = 500000; //Максимальное число узлов в дереве (ограничение на общее число реализованных вариантов)
+  //Максимальное число рассматриваемых дочерних вариантов для каждого узла на любом уровне кроме первого
+  static constexpr uint VCOUNT = 75;
+
+  //Максимальное число узлов в дереве (ограничение на общее число реализованных вариантов)
+  //Варианты реализуются в типичном случае на трех уровнях, а на четвертом учитывается хранимый вес хода противника
+  static constexpr uint NODE_COUNT = VCOUNT + VCOUNT * VCOUNT + VCOUNT * VCOUNT * VCOUNT;
+
   static constexpr uint MAX_TREE_DEPTH = 20;
 
   class GVariants;
@@ -459,7 +464,6 @@ protected:
   void initWgtTree();
 
   int getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GPoint& move5, GVariants* variants);
-  int getWgt(GPlayer player, const GPoint& move, uint depth, uint rest_node_count, uint child_node_count, GVariants* children);
 
   bool getDefenseVariants(GPlayer player, const GPoint& move5, GBaseStack& defense_variants, GPoint*& begin, GPoint*& end);
   void getArbitraryVariants(GPlayer player, uint depth, GPoint*& begin, GPoint*& end);

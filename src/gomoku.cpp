@@ -2208,23 +2208,19 @@ void Gomoku::initWgtTree()
 
 int Gomoku::getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GPoint& move5, GVariants* variants)
 {
+  //Для определения максимального веса рассматриваем веса всех возможных цепочек вариантов
+  //Чтобы вес был определен корректно, все цепочки должны заканчиваться ходом одного и того же игрока.
+  //Это либо исходный игрок (для которого подбирается ход), либо его противник.
+  //Считаем, что цепочка должна заканчиваться весом противника.
+  //Если не осталось вариантов для реализации, то на уровне противника учитываем максимальный хранимый вес доступных вариантов
+  assert(rest_node_count > 0 || !srcPlayerDepth(depth));
+
   if (variants)
     variants->clear();
 
   assert(cells().size() < gridSize());
   if (cells().size() == gridSize() - 1)
     return 0;
-
-  //На последнем уровне исходного игрока учитываем только мат
-  if (srcPlayerDepth(depth) && rest_node_count <= 1)
-  {
-    if (isValidCell(move5))
-    {
-      bool long_attack;
-      return findVictoryMove4Chain(player, move5, 0, long_attack) ? WGT_VICTORY : 0;
-    }
-    return findBestVictoryMove4Chain(player, 0) ? WGT_VICTORY : 0;
-  }
 
   GStack<gridSize()> defense_variants;
 
@@ -2237,7 +2233,7 @@ int Gomoku::getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GP
     getArbitraryVariants(player, depth, begin, end);
 
   uint vcount = end - begin;
-  uint child_node_count = (vcount > rest_node_count) ? 0 : ((rest_node_count - vcount) / vcount);
+  uint child_node_count = (vcount >= rest_node_count) ? 0 : ((rest_node_count - vcount) / vcount);
 
   int max_wgt = -WGT_VICTORY;
   for (const GPoint* var = begin; var != end; ++var)
@@ -2249,7 +2245,49 @@ int Gomoku::getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GP
     if (variants)
       (GPoint&)variants->push() = *var;
 
-    int wgt = getWgt(player, *var, depth, rest_node_count, child_node_count, nullptr);
+    const auto& move4_data = dangerMoves(player).get(*var);
+    const auto& moves5 = move4_data.m_moves5;
+    GPoint move5{-1, -1};
+    uint i;
+    for (i = 0; i < moves5.size(); ++i)
+    {
+      if (!isEmptyCell(moves5[i]))
+        continue;
+      if (isValidCell(move5)) //мат
+        break;
+      move5 = moves5[i];
+    }
+
+    int wgt;
+
+    if (i < moves5.size())
+      wgt = WGT_VICTORY;
+    else if (rest_node_count == 0)
+    {
+      assert(!srcPlayerDepth(depth));
+      wgt = getStoredWgt(player, *var);
+    }
+    else if ((!enemy_danger || isValidCell(move5)) && child_node_count == 0 && !srcPlayerDepth(depth))
+      wgt = getStoredWgt(player, *var);
+    else
+    {
+      GMoveMaker gmm(this, player, *var);
+
+      int enemy_wgt;
+      //Если противник угрожает и у нас не контршах,
+      //проверяем, что угроза противника нейтрализована
+      if (enemy_danger && !isValidCell(move5) && findBestVictoryMove4Chain(!player, 0))
+        enemy_wgt = WGT_VICTORY;
+      else if (child_node_count > 0 || srcPlayerDepth(depth))
+        enemy_wgt = getMaxWgt(!player, depth + 1, child_node_count, move5, nullptr);
+      else
+        enemy_wgt = 0;
+
+      if (enemy_wgt == WGT_VICTORY || enemy_wgt == -WGT_VICTORY)
+        wgt = -enemy_wgt;
+      else
+        wgt = getStoredWgt(player, *var) - enemy_wgt;
+    }
 
     if (variants)
       variants->back().wgt = wgt;
@@ -2260,36 +2298,6 @@ int Gomoku::getMaxWgt(GPlayer player, uint depth, uint rest_node_count, const GP
       max_wgt = wgt;
   }
   return max_wgt;
-}
-
-int Gomoku::getWgt(GPlayer player, const GPoint& move, uint depth, uint rest_node_count, uint child_node_count, GVariants* children)
-{
-  const auto& move4_data = dangerMoves(player).get(move);
-  const auto& moves5 = move4_data.m_moves5;
-  GPoint move5{-1, -1};
-  uint i;
-  for (i = 0; i < moves5.size(); ++i)
-  {
-    if (!isEmptyCell(moves5[i]))
-      continue;
-    if (isValidCell(move5)) //мат
-      return WGT_VICTORY;
-    move5 = moves5[i];
-  }
-
-  int enemy_wgt;
-
-  if (rest_node_count > 1)
-  {
-    GMoveMaker gmm(this, player, move);
-    enemy_wgt = getMaxWgt(!player, depth + 1, child_node_count, move5, nullptr);
-    if (enemy_wgt == WGT_VICTORY || enemy_wgt == -WGT_VICTORY)
-      return -enemy_wgt;
-  }
-  else
-    enemy_wgt = 0;
-
-  return getStoredWgt(player, move) - enemy_wgt;
 }
 
 bool Gomoku::getDefenseVariants(GPlayer player, const GPoint& move5, GBaseStack& defense_variants, GPoint*& begin, GPoint*& end)
