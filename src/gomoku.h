@@ -466,7 +466,7 @@ protected:
   int getMaxWgt(GPlayer player, uint depth, uint& rest_node_count, const GPoint& move5, GVariants* variants);
 
   bool getDefenseVariants(GPlayer player, const GPoint& move5, GBaseStack& defense_variants, GPoint*& begin, GPoint*& end);
-  void getArbitraryVariants(GPlayer player, uint depth, GPoint*& begin, GPoint*& end);
+  void getArbitraryVariants(GPlayer player, uint depth, uint rest_node_count, GPoint*& begin, GPoint*& end, GPoint*& children_wgt_end);
 
   bool srcPlayerDepth(uint depth)
   {
