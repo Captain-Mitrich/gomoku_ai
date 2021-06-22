@@ -2296,7 +2296,7 @@ int Gomoku::getMaxWgt(GPlayer player, uint depth, uint& rest_node_count, const G
       if (var < children_wgt_end)
       {
         uint rest_vcount = children_wgt_end - var;
-        uint child_node_count = (rest_vcount >= rest_node_count) ? 0 : ((rest_node_count - rest_vcount) / rest_vcount);
+        child_node_count = (rest_vcount >= rest_node_count) ? 0 : ((rest_node_count - rest_vcount) / rest_vcount);
       }
       if ((!enemy_danger || isValidCell(move5)) && child_node_count == 0 && !srcPlayerDepth(depth))
         wgt = getStoredWgt(player, *var);
@@ -2321,7 +2321,7 @@ int Gomoku::getMaxWgt(GPlayer player, uint depth, uint& rest_node_count, const G
             rest_node_count += child_node_count;
           }
           else
-            enemy_wgt = 0;
+            enemy_wgt = 0; //Не учитываем хранимый вес исходного игрока на следующем уровне, поскольку последним в цепочке должен быть учтен вес противника
         }
 
         if (enemy_wgt == WGT_VICTORY || enemy_wgt == -WGT_VICTORY)
@@ -2377,6 +2377,48 @@ void Gomoku::getArbitraryVariants(GPlayer player, uint depth, uint rest_node_cou
   nthElement(player, begin, variants.end(), vcount);
   end = children_wgt_end = begin + vcount;
 
+//  if (rest_node_count < 1000)
+//  {
+//    //Выделяем атакующие ходы
+//    children_wgt_end = begin;
+//    GPoint* not_children_begin = variants.end();
+//    for (; ; )
+//    {
+//      assert(children_wgt_end < not_children_begin);
+//      if (isDangerMove4(player, *children_wgt_end) || isDangerOpen3(player, *children_wgt_end))
+//      {
+//        if (++children_wgt_end == not_children_begin)
+//          break;
+//      }
+//      else
+//      {
+//        if (--not_children_begin == children_wgt_end)
+//          break;
+//        std::swap(*children_wgt_end, *not_children_begin);
+//      }
+//    }
+
+//    if (free_cells_count <= VCOUNT)
+//      end = free_cells_end;
+//    else
+//    {
+//      end = begin + VCOUNT;
+//      if (children_wgt_end >= end)
+//        children_wgt_end = end;
+//      else
+//        //Добиваем до VCOUNT ходами с максимальным хранимым весом
+//        nthElement(player, children_wgt_end, free_cells_end, end - children_wgt_end);
+//    }
+//    if (children_wgt_end == begin) //атакующие ходы не найдены, уточняем вес всех вариантов
+//      children_wgt_end = end;
+//    else if (rest_node_count < (children_wgt_end - begin))
+//    {
+//      //Для уточнения выделяем атакующие ходы с максимальным весом
+//      nthElement(player, begin, children_wgt_end, rest_node_count);
+//    }
+//    return;
+//  }
+
   if (depth == 0 && free_cells_count > VCOUNT)
   {
     //Сортируем выделенные ходы, чтобы заменять худшие из них
@@ -2431,55 +2473,6 @@ void Gomoku::getArbitraryVariants(GPlayer player, uint depth, uint rest_node_cou
   assert(rest_node_count > 0);
   if (rest_node_count < vcount)
     nthElement(player, begin, end, rest_node_count);
-
-//  nthElement(player, begin, variants.end(), free_cells_count);
-//  GPoint* free_cells_end = begin + free_cells_count;
-
-//  if (rest_node_count < 1000)
-//  {
-//    assert(depth > 2);
-
-//    //Выделяем атакующие ходы
-//    children_wgt_end = begin;
-//    GPoint* not_children_begin = free_cells_end;
-//    for (; ; )
-//    {
-//      assert(children_wgt_end < not_children_begin);
-//      if (isDangerMove4(player, *children_wgt_end) || isDangerOpen3(player, *children_wgt_end))
-//      {
-//        if (++children_wgt_end == not_children_begin)
-//          break;
-//      }
-//      else
-//      {
-//        if (--not_children_begin == children_wgt_end)
-//          break;
-//        std::swap(*children_wgt_end, *not_children_begin);
-//      }
-//    }
-
-//    assert(children_wgt_end <= free_cells_end);
-
-//    if (free_cells_count <= VCOUNT)
-//      end = free_cells_end;
-//    else
-//    {
-//      end = begin + VCOUNT;
-//      if (children_wgt_end >= end)
-//        children_wgt_end = end;
-//      else
-//        //Добиваем до VCOUNT ходами с максимальным хранимым весом
-//        nthElement(player, children_wgt_end, free_cells_end, end - children_wgt_end);
-//    }
-//    if (children_wgt_end == begin) //атакующие ходы не найдены, уточняем вес всех вариантов
-//      children_wgt_end = end;
-//    else if (rest_node_count < (children_wgt_end - begin))
-//    {
-//      //Для уточнения выделяем атакующие ходы с максимальным весом
-//      nthElement(player, begin, children_wgt_end, rest_node_count);
-//    }
-//    return;
-//  }
 }
 
 int Gomoku::updateMaxWgt(int wgt, int& max_wgt, const GPoint* move, GBaseStack* max_wgt_moves)
